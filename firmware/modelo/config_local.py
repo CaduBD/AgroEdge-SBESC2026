@@ -18,6 +18,13 @@ EFICIENCIA = 0.9     # fração da água do gotejamento que chega à raiz
 AREA_M2 = 7.0        # área de cada planta (espaçamento 3,5 m × 2,0 m)
 VAZAO_L_H = 8.0      # vazão dos gotejadores de uma planta, em litros por hora
 
+# pluviômetro de báscula (usados por pluviometro.py)
+# GPIO livre no conector de expansão da BitDogLab; o outro fio do sensor vai no GND
+PINO_PLUVIOMETRO = 16
+# mm de chuva por virada da báscula. ASSUMIDO: 0,2794 mm é o valor de fábrica dos modelos
+# Misol/Fine Offset; calibrar com água medida (ver pluviometro.py) e trocar aqui
+MM_POR_PULSO = 0.2794
+
 
 def taw():
     """Água total disponível no solo, em mm (FAO-56, eq. 82)."""

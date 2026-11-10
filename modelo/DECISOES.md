@@ -116,7 +116,7 @@ Depois, dando à rede 28 dias de memória e as somas desde a poda, a acurácia v
 ## 8. Como ficou
 
 - **PC** (`modelo/`): o `01_gerar_dataset.py` sorteia solo, raiz, poda e produtor para cada ciclo (467 ciclos, cerca de 50.900 dias). O `02` compara, o `03` treina e exporta os pesos e o `04` confere o caminho do firmware.
-- **Placa** (`firmware/modelo/`): o `config_local.py` é o único arquivo que muda por local. Ele guarda a água disponível do solo, a profundidade da raiz e a data da poda, e calcula `taw()`, `dap()` e `kc()`. O `historico.py` monta as entradas e o `lamina.py` calcula a lâmina (seções 9 e 11).
+- **Placa** (`firmware/modelo/`): o `config_local.py` é o único arquivo que muda por local. Ele guarda a cultura, a data da poda ou floração e a água disponível do solo, e calcula `taw()`, `dap()` e `kc()` a partir da biblioteca `culturas.py` (seção 13). O `historico.py` monta as entradas e o `lamina.py` calcula a lâmina (seções 9 e 11).
 - **Limite de uso:** o modelo foi treinado com TAW de 25 a 140 mm. Fora disso, a resposta não é confiável.
 
 ## 9. E a lâmina de irrigação?
@@ -191,3 +191,23 @@ Na comparação do script 02, a Random Forest chegou a 93,1% de acurácia, mas a
 - Justificar no relatório a troca de C/TFLite para MicroPython.
 - Discutir com o Prof. Max a seção 10 (rede contra balanço), que muda o que o artigo defende.
 - Conferir no sistema instalado a eficiência, a área e a vazão por planta do `config_local.py`.
+
+---
+
+## 13. Biblioteca de culturas (`firmware/modelo/culturas.py`)
+
+A ideia do produto é o produtor informar a cultura e a fase, e o sistema se adaptar. Por isso os dados foram separados em dois tipos:
+
+- **Dados científicos da cultura** (Kc ao longo do ciclo, fração p, profundidade de raiz): vêm da literatura e ficam no `culturas.py`, com a fonte de cada número. O produtor não tem como informá-los.
+- **Dados do local** (qual cultura está plantada, data da poda ou floração, solo, irrigação): ficam no `config_local.py` e, no futuro, chegam pelo dashboard.
+
+O resto do firmware só pergunta o Kc do dia; não sabe qual é a planta. Para incluir uma cultura nova, basta acrescentar um bloco com fonte. Sem fonte, não entra.
+
+Culturas na biblioteca hoje:
+- **Uva Itália:** Kc pela equação de Ávila Netto et al. (2000), ciclo de 109 dias após a poda, p = 0,35 (FAO-56, tab. 22).
+- **Manga Tommy Atkins:** Kc por fase de Silva (2000), adotado pela Embrapa Semiárido: floração 0,44 (20 dias), queda de frutos 0,65 (39), formação 0,83 (51), maturação 0,84 (39), contando a partir da floração; p = 0,5 (Soares e Costa, 1995, via Pinto, Silva e Coelho/Embrapa; o FAO-56 não lista manga); raiz de 0,6 m. A tabela antes anotada como "Teixeira et al., 2008" é, na verdade, de Silva (2000).
+
+Limites:
+- Manga sem Kc fora do período floração–maturação (pós-colheita, fluxos vegetativos, indução, repouso) e sem dados da cv. Palmer.
+- O classificador continua treinado só com uva. O próximo passo é gerar o dataset sorteando culturas (Kc, p, raiz em faixas largas) e usar entradas que valham para qualquer cultura, como já foi feito com o solo (seção 5).
+

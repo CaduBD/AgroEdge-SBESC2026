@@ -14,7 +14,7 @@ clima real de Petrolina (CSV)
    → firmware/modelo/: classificador.py + agroedge_pesos.py + config_local.py, o que a BitDogLab usa
 ```
 
-O modelo é **geral**: o mesmo arquivo de pesos serve para qualquer área do Vale. O que muda de um local para outro (tipo de solo, raiz e data da poda) fica no `config_local.py` da placa, e o TAW do solo entra como uma das entradas da rede.
+O modelo é **geral**: o mesmo arquivo de pesos serve para qualquer área do Vale. O que muda de um local para outro (cultura, tipo de solo, raiz e data da poda ou floração) fica no `config_local.py` da placa, e o TAW do solo entra como uma das entradas da rede.
 
 A pergunta que o classificador responde é: **"com o clima e a irrigação dos últimos dias, como está a água no solo hoje?"**
 
@@ -168,21 +168,23 @@ Tem uma função, `classificar(x)`, que faz quatro passos:
 
 O softmax não é calculado na placa, porque ele não muda qual saída é a maior. Isso economiza 3 exponenciais por dia.
 
-### 4.3 `config_local.py` (editar na instalação)
-É o único arquivo que muda de um local para outro:
+### 4.3 `config_local.py` (editar na instalação) e `culturas.py`
+O `config_local.py` é o único arquivo que muda de um local para outro:
+- `CULTURA`: qual cultura está plantada, pelo nome na biblioteca `culturas.py` (hoje `uva_italia` ou `manga_tommy_atkins`).
+- `DATA_REFERENCIA`: data da poda (uva) ou do início da floração (manga), para contar os dias do ciclo. Atualize a cada ciclo.
 - `AGUA_DISP`: quanta água o solo segura (0,06 a 0,09 arenoso, 0,11 franco-arenoso, 0,15 a 0,18 argiloso/Vertissolo).
-- `RAIZ_M`: profundidade das raízes, de 0,4 a 0,8 m.
-- `DATA_PODA`: data da última poda, para contar o DAP. Atualize a cada poda.
-- `EFICIENCIA`, `AREA_M2` e `VAZAO_L_H`: do sistema de gotejamento, para a lâmina e o tempo de irrigação.
-- `P_DEPLECAO`: a fração p da uva (0,35), a mesma do script 01.
+- `RAIZ_M` e `P_LOCAL`: em `None`, usam a raiz e o p da cultura; preencha só com medida do pomar.
+- `EFICIENCIA`, `AREA_M2` e `VAZAO_L_H`: do sistema de irrigação, para a lâmina e o tempo de irrigação.
 
-E três funções que o firmware usa para montar a entrada: `taw()` (1000 × água × raiz), `dap(hoje)` (dias desde a poda) e `kc(dap)` (equação de Ávila Netto).
+O `culturas.py` guarda os dados científicos de cada cultura (Kc ao longo do ciclo, p, raiz e a fonte de cada número). A biblioteca cresce conforme conseguimos dados de novas culturas; o resto do firmware não muda.
+
+E três funções que o firmware usa para montar a entrada: `taw()` (1000 × água × raiz), `dap(hoje)` (dias desde a data de referência) e `kc(dap)` (Kc da cultura naquele dia).
 
 ### 4.4 `teste_classificador.py`
 Roda 6 dias de 2009 (2 de cada classe, em solos de 42 a 100 mm) e mostra a classe prevista, a esperada, o tempo de cada inferência e a memória livre. Serve para confirmar na placa que tudo foi copiado certo e para medir o tempo real.
 
 ### 4.5 `historico.py`
-A rede precisa das somas dos últimos 3 a 28 dias, das somas desde a poda e de quantos dias faz desde a última irrigação. O `historico.py` guarda isso num arquivo `historico.json` na flash, para não perder quando a placa reinicia, e monta as 39 entradas na ordem certa. As contas são as mesmas do `adicionar_janelas` do script 01; o script 04 confere que dão o mesmo resultado. Quando o DAP volta para trás (houve poda e o `DATA_PODA` foi atualizado), ele recomeça o ciclo.
+A rede precisa das somas dos últimos 3 a 28 dias, das somas desde a poda e de quantos dias faz desde a última irrigação. O `historico.py` guarda isso num arquivo `historico.json` na flash, para não perder quando a placa reinicia, e monta as 39 entradas na ordem certa. As contas são as mesmas do `adicionar_janelas` do script 01; o script 04 confere que dão o mesmo resultado. Quando o DAP volta para trás (houve poda e a `DATA_REFERENCIA` foi atualizada), ele recomeça o ciclo.
 
 ### 4.6 `lamina.py`
 A classe diz se o solo está bem; a lâmina diz quantos mm irrigar. O `lamina.py` acompanha o déficit do solo pela mesma conta do rótulo (FAO-56, eq. 84 e 85): soma o que a planta gastou (Ks × ETc) e tira a chuva e a irrigação. Se a classe for adequado, não irriga. Se for moderado ou crítico, repõe todo o déficit, dividido pela eficiência do gotejamento. O `tempo_min` converte em minutos de válvula: 1 mm em 1 m² é 1 litro.
@@ -206,7 +208,7 @@ minutos = lamina.tempo_min(bruta)            # válvula aberta amanhã
 
 ## 5. Como mudar algo e refazer
 
-**Instalar em outro local:** não precisa retreinar. Edite só o `config_local.py` da placa com o solo, a raiz e a data da poda daquela área.
+**Instalar em outro local:** não precisa retreinar. Edite só o `config_local.py` da placa com a cultura, o solo e a data da poda ou floração daquela área. (Outra cultura além da uva ainda pede retreino para a classe ser confiável; a ETc e a lâmina já funcionam.)
 
 **Mudar a simulação** (por exemplo, o `P_DEPLECAO` que o Prof. Max indicar, ou uma faixa de solo diferente):
 1. Ajuste o parâmetro no topo do `01_gerar_dataset.py`.

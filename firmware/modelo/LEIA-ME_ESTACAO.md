@@ -18,14 +18,16 @@ Mostra os valores no display da BitDogLab e grava um resumo por dia em `diario.c
 Livres ainda: GPIO19 e GPIO20.
 
 ## Arquivos para copiar para a placa
-`main.py`, `config_local.py`, `eto.py`, `termohigro.py`, `relogio.py`, `anemometro.py`, `pluviometro.py`,
+`main.py`, `config_local.py`, `culturas.py`, `eto.py`, `termohigro.py`, `relogio.py`, `anemometro.py`, `pluviometro.py`,
 `piranometro.py`, `historico.py`, `lamina.py`, `classificador.py`, `agroedge_pesos.py`, `ssd1306.py`.
 Não copie `__pycache__`, `teste_main_pc.py` nem a pasta `bancada`.
 
 ## Antes de ligar no campo (`config_local.py`)
 - `LATITUDE` e `ALTITUDE_M` do pomar (o GPS do celular dá os dois).
 - `ANEMO_ALTURA_M`: altura real das conchas.
-- Solo (`AGUA_DISP`), raiz (`RAIZ_M`), `DATA_PODA`, `EFICIENCIA`, `AREA_M2`, `VAZAO_L_H`.
+- Cultura (`CULTURA`: `uva_italia` ou `manga_tommy_atkins`) e `DATA_REFERENCIA` (data da poda para a uva, do início
+  da floração para a manga). Os dados de cada cultura (Kc, p, raiz e fontes) estão em `culturas.py`.
+- Solo (`AGUA_DISP`), `EFICIENCIA`, `AREA_M2`, `VAZAO_L_H`. `RAIZ_M` e `P_LOCAL` só se houver medida no pomar.
 - Hora: com DS3231, acerte uma vez pelo Thonny: `import relogio; relogio.acertar(2026, 11, 11, 14, 30)`.
   Com Wi-Fi, preencha `WIFI_SSID`/`WIFI_SENHA` (acerta sozinho pelo NTP e também acerta o DS3231).
   Sem nenhum dos dois, a hora se perde quando a energia cai.
@@ -58,5 +60,6 @@ Para uso normal, volte para `MODO_FECHAMENTO = "meia_noite"`.
 - **Anemômetro desligado:** sem pulsos, o vento é lido como 0 m/s, e não como "faltando". Confira o diário.
 - **Classificador:** precisa de 28 dias de histórico e do ciclo desde a poda. Começando no meio do ciclo,
   as primeiras semanas saem com o aviso "classe pouco confiável". Hoje o modelo é o da uva Itália
-  (DAP 0 a 108); para manga, falta a biblioteca de culturas e o retreino.
+  (DAP 0 a 108). Em outra cultura (ex.: manga), a ETc, o balanço e a lâmina já saem com o Kc certo, mas a classe
+  vem marcada como pouco confiável até o retreino com várias culturas.
 - **Dias com a placa desligada** não são preenchidos: o histórico pula esses dias.

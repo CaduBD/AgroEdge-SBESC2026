@@ -13,7 +13,8 @@ Rodar em ordem (Python 3, `pip install pandas scikit-learn tabulate tensorflow`)
 Em `../firmware/modelo/`, copie para a placa:
 - `agroedge_pesos.py`: pesos, bias, médias e desvios (gerado pelo script 03, não editar).
 - `classificador.py`: a inferência da MLP em Python puro; use `classificador.classificar(x)`.
-- `config_local.py`: **o único arquivo que muda por local**: água disponível do solo, profundidade da raiz, data da poda, eficiência, área e vazão por planta. Calcula `taw()`, `dap(hoje)` e `kc(dap)`.
+- `config_local.py`: **o único arquivo que muda por local**: cultura (`CULTURA`), data da poda ou floração (`DATA_REFERENCIA`), água disponível do solo, eficiência, área e vazão por planta. Calcula `taw()`, `dap(hoje)` e `kc(dap)` a partir da biblioteca `culturas.py`.
+- `culturas.py`: biblioteca de culturas (Kc ao longo do ciclo, fração p, raiz e fonte de cada número). Hoje: uva Itália e manga Tommy Atkins.
 - `historico.py`: guarda os últimos 28 dias e as somas desde a poda num JSON na flash e monta as 39 entradas do dia, com as mesmas contas do script 01.
 - `lamina.py`: a lâmina de irrigação pelo FAO-56 (seção abaixo).
 - `teste_classificador.py`: roda 6 dias de 2009 na placa e mostra classe, tempo e memória livre.

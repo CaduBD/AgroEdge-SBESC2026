@@ -14,14 +14,14 @@ CSV = next(p for p in (os.path.join(AQUI, "petrolina_clima_2000_2009.csv"),
                        os.path.join(AQUI, "..", "..", "modelo", "dados", "petrolina_clima_2000_2009.csv"))
            if os.path.exists(p))
 
-cfg.DATA_PODA = (2009, 3, 1)
+cfg.DATA_REFERENCIA = (2009, 3, 1)
 h = historico.Historico(arquivo=None)
 contagem = [0, 0, 0]
 maior_dif = 0.0
 with open(CSV) as f:
     for r in csv.DictReader(f):
         a, m, d = (int(x) for x in r["data"].split("-"))
-        if (a, m, d) < cfg.DATA_PODA:
+        if (a, m, d) < cfg.DATA_REFERENCIA:
             continue
         if cfg.dap((a, m, d)) > 108:
             break
@@ -52,3 +52,13 @@ assert r["classe"] is None and "incompleto" in r["avisos"][0]
 print("cabeçalho do diário:", cab.strip())
 print("linha exemplo:", linha.strip())
 print("OK: casos de dado faltando e dia incompleto tratados")
+
+# troca de cultura: manga Tommy Atkins, 60 dias após a floração (fase de formação, Kc 0,83)
+import culturas
+cfg.CULTURA = "manga_tommy_atkins"
+cfg.DATA_REFERENCIA = (2009, 1, 10)
+r = main.processar_dia(historico.Historico(arquivo=None), (2009, 3, 11), ar, 20.0, 2.0, 0, 0, 1.0)
+assert r["fase"] == "formacao_frutos" and abs(r["kc"] - 0.83) < 1e-9, r
+assert abs(r["etc"] - 0.83 * r["et0"]) < 1e-9
+assert any("treinado só com uva" in a for a in r["avisos"])
+print("OK: manga, dia %d do ciclo, fase %s, Kc %.2f, ETc %.2f mm" % (r["dap"], r["fase"], r["kc"], r["etc"]))

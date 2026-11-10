@@ -11,7 +11,7 @@
 #   relógio DS3231 ............ I²C0 GPIO0/1 (opcional; ou NTP pelo Wi-Fi)
 #   display OLED .............. I²C1 GPIO14/15 (o da própria BitDogLab)
 #
-# Arquivos copiados para a placa: main.py, config_local.py, eto.py, termohigro.py, relogio.py,
+# Arquivos copiados para a placa: main.py, config_local.py, culturas.py, eto.py, termohigro.py, relogio.py,
 # anemometro.py, pluviometro.py, piranometro.py, historico.py, lamina.py, classificador.py,
 # agroedge_pesos.py e ssd1306.py.
 #
@@ -20,6 +20,13 @@
 # e rode main.py de novo. Sem registro, o dia conta como 0 mm (ver IRRIGACAO_MODO).
 #
 # Para testar sem esperar a meia-noite:  import main; main.rodar(fechar_agora=True)
+#
+# Modo de teste de 24 h (config_local.MODO_FECHAMENTO = "24h"): o dia fecha 24 horas de
+# funcionamento depois de ligar, e não à meia-noite. Instalando às 10h, às 10h do dia seguinte
+# sai um dia completo (um ciclo inteiro de sol, Tmax e Tmin). O tempo é contado pelo próprio
+# laço, então o fechamento não depende do relógio; o relógio só dá a data para o ET0 e o DAP
+# (sem relógio, usa config_local.DATA_INSTALACAO). Se a energia cair, o tempo desligado não
+# conta: a janela continua de onde parou quando a placa volta.
 
 import json
 import time
@@ -86,33 +93,48 @@ def processar_dia(hist, data, ar, rs, u2, chuva, irrigacao, cobertura):
     if et is None or cobertura < COBERTURA_MIN:
         r["avisos"] = avisos
         return r
+    import culturas
     dap = cfg.dap(data)
+    kc, fase, no_ciclo = culturas.kc_do_dia(cfg.CULTURA, dap)
+    if not no_ciclo:
+        avisos.append("dia %d do ciclo fora dos dados de Kc da cultura (0-%d): usado o Kc da fase "
+                      "mais próxima" % (dap, culturas.cultura(cfg.CULTURA)["ciclo_dias"]))
     x, deficit = hist.fechar_dia(cfg.taw(), dap, et["et0"], chuva, irrigacao, ar["tmax"],
                                  ar["tmin"], ar["ur_media"], et["u2"], et["rs"])
     classe, _ = classificador.classificar(x)
     _, bruta = lamina.recomendar(classe, deficit)
-    r.update(dap=dap, kc=cfg.kc(dap), etc=cfg.kc(dap) * et["et0"], classe=classe,
+    r.update(cultura=cfg.CULTURA, dap=dap, fase=fase, kc=kc, etc=kc * et["et0"], classe=classe,
              nome_classe=classificador.CLASSES[classe], deficit=deficit, lamina_bruta=bruta,
              minutos=lamina.tempo_min(bruta))
     if len(hist.etc) < 28:
         avisos.append("histórico com %d dias (< 28): classe pouco confiável" % len(hist.etc))
-    if not 0 <= dap <= 108:
+    if cfg.CULTURA != "uva_italia":
+        avisos.append("classificador treinado só com uva: classe pouco confiável nesta cultura")
+    elif not 0 <= dap <= 108:
         avisos.append("DAP %d fora do treino (0-108): classe pouco confiável" % dap)
     r["avisos"] = avisos
     return r
 
 
+def proximo_dia(a, m, d):
+    dias = (31, 29 if a % 4 == 0 and (a % 100 != 0 or a % 400 == 0) else 28,
+            31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+    if d < dias[m - 1]:
+        return a, m, d + 1
+    return (a + 1, 1, 1) if m == 12 else (a, m + 1, 1)
+
+
 def linha_diario(r):
-    campos = ("data", "cobertura", "tmax", "tmin", "ur", "u2", "rs", "chuva", "irrigacao",
-              "et0", "etc", "deficit", "classe", "lamina_bruta", "minutos")
+    campos = ("data", "cultura", "dap", "fase", "kc", "cobertura", "tmax", "tmin", "ur", "u2",
+              "rs", "chuva", "irrigacao", "et0", "etc", "deficit", "classe", "lamina_bruta",
+              "minutos")
 
     def fmt(v):
         if v is None:
             return ""
         return "%.3f" % v if isinstance(v, float) else str(v)
     return ",".join(fmt(r.get(k)) for k in campos) + "," + ";".join(r.get("avisos", [])) + "\n", \
-        "data,cobertura,tmax,tmin,ur,u2,rs,chuva,irrigacao,et0,etc,deficit,classe,lamina_bruta," \
-        "minutos,avisos\n"
+        ",".join(campos) + ",avisos\n"
 
 
 # --------------------------------------------------------------------------------------------
@@ -239,6 +261,9 @@ class Estacao:
 
     def fechar_dia(self):
         e = self.estado
+        if e["dia"] is None:
+            print("sem data (relógio não acertado e sem DATA_INSTALACAO): dia não fechado")
+            return
         data = tuple(e["dia"])
         ar = self.ar.fechar_dia() if self.ar else {}
         # radiação: integra só o tempo com leitura e completa a falta pela média, se a
@@ -269,8 +294,21 @@ class Estacao:
         _zerar_irrigacao()
         print("DIA FECHADO:", r)
         e.update(segundos=0.0, energia_j=0.0, n_sol=0, seg_sol=0.0)
-        e["dia"] = list(self.relogio.hoje()) if self.relogio.valido() else None
+        if _c("MODO_FECHAMENTO", "meia_noite") == "24h":
+            e["dia"] = self._data_janela(proxima=data)
+        else:
+            e["dia"] = list(self.relogio.hoje()) if self.relogio.valido() else None
         self.salvar()
+
+    def _data_janela(self, proxima=None):
+        """Data que identifica a janela de 24 h: a do relógio, se acertado; senão a
+        DATA_INSTALACAO do config (e o dia seguinte a cada janela fechada)."""
+        if self.relogio.valido():
+            return list(self.relogio.hoje())
+        if proxima is not None:
+            return list(proximo_dia(*proxima))
+        base = _c("DATA_INSTALACAO", None)
+        return list(base) if base else None
 
     def mostrar(self, pagina):
         u = self.ultimo
@@ -314,8 +352,15 @@ class Estacao:
                 # a primeira leitura não soma energia; as outras somam o tempo real desde a anterior
                 self.ler_lento(decorrido - t_lento if t_lento >= 0 else 0)
                 t_lento = decorrido
+            if _c("MODO_FECHAMENTO", "meia_noite") == "24h":
+                # modo de teste: fecha após 24 h de funcionamento, com ou sem relógio
+                if self.estado["dia"] is None:
+                    self.estado["dia"] = self._data_janela()
+                if self.estado["segundos"] >= 86400 or fechar_agora:
+                    fechar_agora = False
+                    self.fechar_dia()
             # virada do dia (o relógio local mudou de data) ou fechamento forçado
-            if self.relogio.valido():
+            elif self.relogio.valido():
                 hoje = list(self.relogio.hoje())
                 if self.estado["dia"] is None:
                     self.estado["dia"] = hoje

@@ -592,39 +592,54 @@ def classificar(x):
 - **Por que não calcular o softmax:** o softmax é `e^s / soma(e^s)`. Como a exponencial só cresce, a maior saída antes do softmax continua sendo a maior depois. Pular essa parte economiza 3 exponenciais, que são caras sem FPU.
 - `return melhor, saidas` devolve uma tupla. Quem chama pode fazer `classe, saidas = classificar(x)`. As `saidas` servem para mandar ao dashboard, por exemplo para mostrar o quanto o modelo está "seguro".
 
-## 4.3 `config_local.py` (editar na instalação)
-```python
-import time
+## 4.3 `config_local.py` (editar na instalação) e `culturas.py` (biblioteca de culturas)
+Os dados ficam separados em dois arquivos:
+- **`culturas.py`**: dados científicos de cada cultura, vindos da literatura (Kc ao longo do ciclo, fração p,
+  profundidade de raiz, fonte). Hoje: `uva_italia` e `manga_tommy_atkins`. Cresce conforme o projeto consegue
+  dados de novas culturas; cada campo está explicado no cabeçalho do arquivo.
+- **`config_local.py`**: dados do local, que mudam de uma instalação para outra.
 
-AGUA_DISP = 0.11
-RAIZ_M = 0.6
-DATA_PODA = (2026, 1, 15)
+```python
+import culturas
+
+CULTURA = "uva_italia"            # nome de culturas.CULTURAS
+DATA_REFERENCIA = (2026, 1, 15)   # poda (uva) ou início da floração (manga)
+AGUA_DISP = 0.11                  # θCC − θPMP do solo
+RAIZ_M = None                     # None = usa a raiz da cultura
+P_LOCAL = None                    # None = usa o p da cultura
 
 EFICIENCIA = 0.9
 AREA_M2 = 7.0
 VAZAO_L_H = 8.0
 
-P_DEPLECAO = 0.35
+_c = culturas.cultura(CULTURA)
+RAIZ_EFETIVA_M = RAIZ_M if RAIZ_M is not None else _c["raiz_m"]
+P_DEPLECAO = P_LOCAL if P_LOCAL is not None else _c["p"]
 
 def taw():
-    return 1000 * AGUA_DISP * RAIZ_M
+    return 1000 * AGUA_DISP * RAIZ_EFETIVA_M
 
 def dap(hoje):
-    a = time.mktime(DATA_PODA + (0, 0, 0, 0, 0, 0))
-    b = time.mktime(tuple(hoje) + (0, 0, 0, 0, 0, 0))
-    return int((b - a) // 86400)
+    return culturas.dias_desde(DATA_REFERENCIA, tuple(hoje))
 
 def kc(d):
-    return -8e-5 * d * d + 0.0089 * d + 0.488
+    return culturas.kc_do_dia(CULTURA, d)[0]
 ```
-- É o único arquivo que muda de um local para outro. Os pesos são os mesmos em qualquer lugar; o que diz à rede em que solo ela está é o `taw()`.
-- `AGUA_DISP` e `RAIZ_M` são os mesmos parâmetros que o script 01 sorteia, só que agora com o valor real da área. O modelo foi treinado com TAW de 25 a 140 mm; fora disso, a resposta não é confiável.
-- `taw()` é a mesma conta da função `solo()` do script 01 (seção 1.2.1).
-- `EFICIENCIA`, `AREA_M2` e `VAZAO_L_H` são do gotejamento e só servem ao `lamina.py`. Os valores (90%, planta em 3,5 m × 2,0 m, 8 L/h por planta) são ASSUMIDOS: conferir no sistema instalado.
-- `P_DEPLECAO` é a mesma fração p do script 01. Se o Prof. Max indicar outro valor, ele muda nos dois lugares (e o modelo precisa ser retreinado).
-- `dap(hoje)`: `time.mktime` converte uma data em segundos desde uma data fixa. Ele recebe uma tupla de 9 números (ano, mês, dia, hora, minuto, segundo, dia da semana, dia do ano, horário de verão), por isso `+ (0, 0, 0, 0, 0, 0)` completa a data com zeros. Com 9 números a mesma linha funciona no MicroPython e no Python do PC. A diferença em segundos dividida por 86.400 (segundos de um dia) dá o DAP. O `//` é divisão inteira, e o `int()` garante um número inteiro também no PC, onde o `mktime` devolve float.
-- `kc(d)` é a mesma equação do `kc_uva` do script 01 (seção 1.3). `d * d` em vez de `d**2` é um pouco mais rápido no MicroPython.
-- Conferido no MicroPython: `taw()` = 66,0; `dap((2026, 3, 1))` = 45; `kc(45)` = 0,7265.
+- O resto do firmware só chama `taw()`, `dap()`, `kc()` e `P_DEPLECAO`; não sabe qual é a planta. Trocar de cultura
+  é mudar `CULTURA` e `DATA_REFERENCIA`. No futuro, o dashboard grava essas escolhas na placa.
+- `AGUA_DISP` e a raiz são os mesmos parâmetros que o script 01 sorteia, só que com o valor real da área. O modelo
+  foi treinado com TAW de 25 a 140 mm; fora disso, a resposta não é confiável.
+- `RAIZ_M` e `P_LOCAL` em `None` usam os valores da cultura. Preencha só com medida ou recomendação do agrônomo.
+- `dap(hoje)` conta os dias desde a data de referência com `culturas.dias_desde`, uma conta de calendário pura
+  (não depende do `time.mktime`, que tem regras diferentes no MicroPython e no PC). O nome "dap" vem da uva; na
+  manga são os dias após a floração.
+- `kc(d)`: na uva, a equação de Ávila Netto et al. (2000), igual ao `kc_uva` do script 01 (seção 1.3); na manga,
+  o Kc constante de cada fase (Silva, 2000). Fora do ciclo com dados, usa a ponta mais próxima e o `main.py` avisa.
+- O classificador foi treinado só com uva (p = 0,35 nos rótulos). Em outra cultura, a ETc, o balanço e a lâmina
+  já saem certos, mas a classe vem marcada como pouco confiável até o retreino com várias culturas.
+- `EFICIENCIA`, `AREA_M2` e `VAZAO_L_H` só servem ao `lamina.py`. Os valores (90%, planta em 3,5 m × 2,0 m, 8 L/h
+  por planta) são ASSUMIDOS: conferir no sistema instalado.
+- Conferido: `taw()` = 66,0; `dap((2026, 3, 1))` = 45; `kc(45)` = 0,7265 (os mesmos valores da versão anterior).
 
 ## 4.4 `teste_classificador.py`
 ```python
@@ -709,7 +724,7 @@ class Historico:
                 v[col + n + "_taw"] = v[col + n] / taw
         return [v[nome] for nome in classificador.FEATURES], self.deficit
 ```
-- Se o DAP de hoje não é maior que o do último dia, houve poda (o `DATA_PODA` foi atualizado e o DAP voltou para 0). Então o ciclo recomeça, como cada cenário do script 01 começa do zero.
+- Se o DAP de hoje não é maior que o do último dia, houve poda (a `DATA_REFERENCIA` foi atualizada e o DAP voltou para 0). Então o ciclo recomeça, como cada cenário do script 01 começa do zero.
 - Cada lista guarda no máximo 28 valores: `append` põe o de hoje no fim e `pop(0)` tira o mais velho.
 - `self.etc[-n:]` pega os últimos `n` valores; se ainda houver menos de `n` dias, pega os que existem. É o mesmo que o `rolling(n, min_periods=1)` do script 01.
 - `self.ciclo` soma ETc, chuva e irrigação desde a poda, como o `cumsum()` do script 01. Não precisa guardar todos os dias do ciclo: basta somar o de hoje ao total de ontem.

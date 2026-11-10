@@ -25,6 +25,29 @@ PINO_PLUVIOMETRO = 16
 # Misol/Fine Offset; calibrar com água medida (ver pluviometro.py) e trocar aqui
 MM_POR_PULSO = 0.2794
 
+# anemômetro de conchas Met One 014A (usados por anemometro.py)
+# GPIO livre no conector de expansão, ao lado do GP16 do pluviômetro; o outro fio vai no GND
+PINO_ANEMOMETRO = 17
+# calibração de fábrica do 014A: v (m/s) = ANEMO_M × f (Hz) + ANEMO_B; com f = 0 dá 0
+ANEMO_M = 0.8
+ANEMO_B = 0.447
+# altura das conchas acima do solo (m); o ET0 do FAO-56 usa vento a 2 m, e o anemometro.py
+# converte se for outra altura. ASSUMIDO: 2,0 m; medir na instalação e trocar aqui
+ANEMO_ALTURA_M = 2.0
+# pulsos mais próximos que isso são repique da reed (a 45 m/s os pulsos vêm a cada ~18 ms).
+# ASSUMIDO: 2 ms; conferir no MODO 3 do teste_anemometro.py
+ANEMO_DEBOUNCE_MS = 2
+
+
+# piranômetro SN-300AL-RA-N01 por RS-485 / Modbus-RTU (usados por piranometro.py)
+# MAX485: DI no TX, RO no RX (com divisor 1k/2k), DE+RE juntos no pino de direção
+PINO_RS485_TX = 8      # UART1 TX
+PINO_RS485_RX = 9      # UART1 RX
+PINO_RS485_DE_RE = 4
+# valores que funcionaram no teste de bancada; se trocar o sensor, rode o scan
+# (bancada/teste_piranometro_rs485.py com SCAN_MODE = True)
+PIRANO_ENDERECO = 1
+PIRANO_BAUD = 4800
 
 def taw():
     """Água total disponível no solo, em mm (FAO-56, eq. 82)."""

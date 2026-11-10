@@ -10,7 +10,12 @@ AGUA_DISP = 0.11
 # profundidade efetiva das raízes (m); com gotejamento, de 0,4 a 0,8
 RAIZ_M = 0.6
 
-# data da última poda (ano, mês, dia); atualize a cada poda
+# data da última poda; atualize a cada poda
+# FORMATO DAS DATAS neste arquivo: (ano, mês, dia), com parênteses e vírgulas, nessa ordem
+# (ao contrário do dd/mm/aaaa), números sem zero à esquerda e sem aspas.
+#   15 de janeiro de 2026  ->  (2026, 1, 15)
+#   20 de novembro de 2026 ->  (2026, 11, 20)
+# Errado: "15/01/2026", (15, 1, 2026), (2026, 01, 15)
 DATA_PODA = (2026, 1, 15)
 
 # irrigação (usados por lamina.py). ASSUMIDO: conferir no sistema instalado
@@ -48,6 +53,38 @@ PINO_RS485_DE_RE = 4
 # (bancada/teste_piranometro_rs485.py com SCAN_MODE = True)
 PIRANO_ENDERECO = 1
 PIRANO_BAUD = 4800
+
+# DHT22 (temperatura e umidade do ar; usados por termohigro.py)
+# conector IDC, fileira "GP18 GP19 GP20 GP4 GP9 GP8 5V": GP18 é o 1º pino
+PINO_DHT22 = 18
+
+# relógio DS3231 no I²C0 (usados por relogio.py); opcional se houver Wi-Fi
+PINO_I2C0_SDA = 0
+PINO_I2C0_SCL = 1
+FUSO_HORAS = -3        # hora local de Petrolina (UTC-3)
+# Wi-Fi para acertar a hora pela internet (NTP). Vazio = não usa Wi-Fi
+WIFI_SSID = ""
+WIFI_SENHA = ""
+
+# local da estação, para o ET0 (usados por main.py e eto.py). ASSUMIDO: Petrolina;
+# trocar pela posição do pomar (GPS do celular serve)
+LATITUDE = -9.39       # graus, sul negativo
+ALTITUDE_M = 370
+
+# irrigação aplicada: "arquivo" = soma o que for registrado com main.registrar_irrigacao(mm);
+# "zero" = considera que não houve irrigação
+IRRIGACAO_MODO = "arquivo"
+
+# quando o dia fecha (usado por main.py):
+#   "meia_noite" = dia do calendário (uso normal; precisa do relógio acertado)
+#   "24h"        = modo de teste: fecha 24 h de funcionamento depois de ligar (não precisa de relógio)
+MODO_FECHAMENTO = "meia_noite"
+# data do dia em que a placa for ligada no campo, usada no modo "24h" se o relógio não estiver
+# acertado (o ET0 precisa do dia do ano). Mesmo formato da DATA_PODA: (ano, mês, dia).
+#   ligar em 20 de novembro de 2026 -> DATA_INSTALACAO = (2026, 11, 20)
+# None = não informada (aí o modo "24h" só funciona com o DS3231 ou o Wi-Fi acertando a hora)
+DATA_INSTALACAO = None
+
 
 def taw():
     """Água total disponível no solo, em mm (FAO-56, eq. 82)."""

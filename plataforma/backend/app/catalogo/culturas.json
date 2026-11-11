@@ -1,0 +1,25 @@
+[
+  {
+    "chave": "uva_italia",
+    "nome": "Uva de mesa cv. Itália",
+    "referencia": "poda",
+    "ciclo_dias": 109,
+    "p": 0.35,
+    "raiz_m": 0.6,
+    "fases": null
+  },
+  {
+    "chave": "manga_tommy_atkins",
+    "nome": "Manga cv. Tommy Atkins",
+    "referencia": "floracao",
+    "ciclo_dias": 149,
+    "p": 0.5,
+    "raiz_m": 0.6,
+    "fases": [
+      {"chave": "floracao", "nome": "Floração", "dias": 20, "kc": 0.44},
+      {"chave": "queda_frutos", "nome": "Queda de frutos", "dias": 39, "kc": 0.65},
+      {"chave": "formacao_frutos", "nome": "Formação dos frutos", "dias": 51, "kc": 0.83},
+      {"chave": "maturacao", "nome": "Maturação", "dias": 39, "kc": 0.84}
+    ]
+  }
+]

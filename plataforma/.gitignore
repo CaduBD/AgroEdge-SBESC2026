@@ -1,0 +1,19 @@
+# Segredos e arquivos gerados ficam só no computador de cada um
+.env
+mosquitto/passwd
+*.db
+*.db-shm
+*.db-wal
+backend/dados/
+
+# Python
+__pycache__/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/

@@ -33,6 +33,7 @@ Como na proposta, a lâmina sai do FAO-56 e a classe sai do modelo. A classe dec
 - `lamina.atualizar_deficit(...)`: o déficit do solo em mm, pela mesma conta do rótulo (eq. 84 e 85).
 - `lamina.recomendar(classe, deficit)`: adequado não irriga; moderado ou crítico repõe todo o déficit. Devolve a lâmina líquida e a bruta (líquida ÷ eficiência).
 - `lamina.tempo_min(bruta)`: minutos de válvula aberta, pela área e vazão do `config_local.py`.
+- `lamina.litros_planta(mm)` e `lamina.litros_total(mm)`: a lâmina em litros por planta e na área toda (1 mm em 1 m² = 1 L; total = × `N_PLANTAS`).
 
 Com a placa irrigando sozinha nos 35 ciclos de 2009 (script 04), o solo ficou adequado em 94,6% dos dias e não teve nenhum dia crítico, contra 64% e 8,4% dos produtores simulados do dataset.
 

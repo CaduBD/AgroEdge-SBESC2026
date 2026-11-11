@@ -62,3 +62,13 @@ assert r["fase"] == "formacao_frutos" and abs(r["kc"] - 0.83) < 1e-9, r
 assert abs(r["etc"] - 0.83 * r["et0"]) < 1e-9
 assert any("treinado só com uva" in a for a in r["avisos"])
 print("OK: manga, dia %d do ciclo, fase %s, Kc %.2f, ETc %.2f mm" % (r["dap"], r["fase"], r["kc"], r["etc"]))
+
+# litros: 1 mm em 1 m² = 1 litro
+import lamina
+assert abs(r["consumo_l_planta"] - r["etc"] * cfg.AREA_M2) < 1e-9
+assert abs(r["aplicar_l_planta"] - r["lamina_bruta"] * cfg.AREA_M2) < 1e-9
+assert lamina.litros_total(4.98, area_m2=40, n_plantas=250) == 4.98 * 40 * 250     # 49.800 L
+assert lamina.litros_total(5.0, n_plantas=None) is None
+print("OK: litros por planta e na área (manga 8 x 5 m, ETc 4,98 mm, 250 plantas: %.0f L)"
+      % lamina.litros_total(4.98, area_m2=40, n_plantas=250))
+

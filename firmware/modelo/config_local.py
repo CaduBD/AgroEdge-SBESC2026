@@ -42,9 +42,13 @@ P_LOCAL = None
 # AREA_M2: área de cada planta = espaçamento entre linhas × entre plantas
 #   (uva 3,5 × 2,0 m = 7 m²; manga típica 8 × 5 m = 40 m²)
 # VAZAO_L_H: soma da vazão dos emissores (gotejadores ou microaspersores) de UMA planta, em L/h
+# N_PLANTAS: quantas plantas a irrigação desta estação atende (o setor ou a área que ela
+#   representa). Serve só para mostrar os litros da área toda; None = mostra só por planta.
+#   Ex.: 1 ha de manga em 8 × 5 m tem 250 plantas; 1 ha de uva em 3,5 × 2 m tem ~1.430.
 EFICIENCIA = 0.9
 AREA_M2 = 7.0
 VAZAO_L_H = 8.0
+N_PLANTAS = None
 
 # pluviômetro de báscula (usados por pluviometro.py)
 # GPIO livre no conector de expansão da BitDogLab; o outro fio do sensor vai no GND

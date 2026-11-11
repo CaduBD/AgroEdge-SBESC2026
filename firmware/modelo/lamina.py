@@ -6,6 +6,8 @@
 #   deficit = lamina.atualizar_deficit(deficit, etc, chuva, irrigacao, taw)   # fim do dia
 #   liquida, bruta = lamina.recomendar(classe, deficit)                      # mm para amanhã
 #   minutos = lamina.tempo_min(bruta)                                        # tempo de válvula aberta
+#   litros = lamina.litros_planta(mm)          # mm -> litros por planta (1 mm em 1 m² = 1 L)
+#   total = lamina.litros_total(mm)            # litros na área toda (None sem N_PLANTAS)
 
 import config_local as cfg
 
@@ -30,6 +32,16 @@ def recomendar(classe, deficit, eficiencia=cfg.EFICIENCIA):
     if classe == 0:
         return 0.0, 0.0
     return deficit, deficit / eficiencia
+
+
+def litros_planta(mm, area_m2=cfg.AREA_M2):
+    """Converte uma lâmina em mm para litros por planta: 1 mm sobre 1 m² é 1 litro."""
+    return mm * area_m2
+
+
+def litros_total(mm, area_m2=cfg.AREA_M2, n_plantas=getattr(cfg, "N_PLANTAS", None)):
+    """Litros na área toda atendida pela estação; None se N_PLANTAS não foi configurado."""
+    return None if not n_plantas else mm * area_m2 * n_plantas
 
 
 def tempo_min(bruta, area_m2=cfg.AREA_M2, vazao_l_h=cfg.VAZAO_L_H):

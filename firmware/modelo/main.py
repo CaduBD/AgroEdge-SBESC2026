@@ -84,10 +84,17 @@ def processar_dia(hist, data, ar, rs, u2, chuva, irrigacao, cobertura):
     r = {"data": "%04d-%02d-%02d" % data, "chuva": chuva, "irrigacao": irrigacao,
          "tmax": ar.get("tmax"), "tmin": ar.get("tmin"), "ur": ar.get("ur_media"),
          "cobertura": cobertura, "et0": None, "etc": None, "classe": None, "deficit": None,
-         "lamina_bruta": None, "minutos": None}
+         "lamina_bruta": None, "minutos": None, "consumo_l_planta": None, "consumo_l_total": None,
+         "aplicar_l_planta": None, "aplicar_l_total": None}
     et, avisos = calcular_et0(data, ar, rs, u2)
     if et:
         r.update(et0=et["et0"], rs=et["rs"], u2=et["u2"])
+        # consumo do dia em litros: ETc (mm) × área. Calculado mesmo em dia incompleto ou fora
+        # do histórico, porque não depende do classificador
+        kc_dia = cfg.kc(cfg.dap(data))
+        etc_mm = kc_dia * et["et0"]
+        r.update(etc=etc_mm, consumo_l_planta=lamina.litros_planta(etc_mm),
+                 consumo_l_total=lamina.litros_total(etc_mm))
     if cobertura < COBERTURA_MIN:
         avisos.append("dia incompleto (%.0f%% com leituras): fora do histórico" % (100 * cobertura))
     if et is None or cobertura < COBERTURA_MIN:
@@ -105,7 +112,8 @@ def processar_dia(hist, data, ar, rs, u2, chuva, irrigacao, cobertura):
     _, bruta = lamina.recomendar(classe, deficit)
     r.update(cultura=cfg.CULTURA, dap=dap, fase=fase, kc=kc, etc=kc * et["et0"], classe=classe,
              nome_classe=classificador.CLASSES[classe], deficit=deficit, lamina_bruta=bruta,
-             minutos=lamina.tempo_min(bruta))
+             minutos=lamina.tempo_min(bruta), aplicar_l_planta=lamina.litros_planta(bruta),
+             aplicar_l_total=lamina.litros_total(bruta))
     if len(hist.etc) < 28:
         avisos.append("histórico com %d dias (< 28): classe pouco confiável" % len(hist.etc))
     if cfg.CULTURA != "uva_italia":
@@ -126,8 +134,8 @@ def proximo_dia(a, m, d):
 
 def linha_diario(r):
     campos = ("data", "cultura", "dap", "fase", "kc", "cobertura", "tmax", "tmin", "ur", "u2",
-              "rs", "chuva", "irrigacao", "et0", "etc", "deficit", "classe", "lamina_bruta",
-              "minutos")
+              "rs", "chuva", "irrigacao", "et0", "etc", "consumo_l_planta", "consumo_l_total",
+              "deficit", "classe", "lamina_bruta", "aplicar_l_planta", "aplicar_l_total", "minutos")
 
     def fmt(v):
         if v is None:
@@ -324,13 +332,14 @@ class Estacao:
                 "Irrig %.1f mm" % irrigacao_hoje())
         else:
             r = self.ultimo_dia
+            tot = r.get("aplicar_l_total")
             self.display.linhas(
-                "Ontem " + r["data"][5:],
-                "ET0 " + f(r.get("et0"), "%.1f mm"),
-                "ETc " + f(r.get("etc"), "%.1f mm"),
+                r["data"][5:] + " ET0 " + f(r.get("et0"), "%.1fmm"),
+                "Gasto " + f(r.get("consumo_l_planta"), "%.0f L/pl"),
                 (r.get("nome_classe") or "sem classe")[:16],
-                "Irrigar " + f(r.get("lamina_bruta"), "%.1f mm"),
-                "Valvula " + f(r.get("minutos"), "%.0f min"))
+                "Irrig " + f(r.get("lamina_bruta"), "%.1fmm"),
+                "  " + f(r.get("aplicar_l_planta"), "%.0f L/pl") + " " + f(r.get("minutos"), "%.0fm"),
+                "Total " + (("%.1f m3" % (tot / 1000)) if tot is not None else "--"))
 
     def rodar(self, fechar_agora=False):
         if self.estado["dia"] is None:

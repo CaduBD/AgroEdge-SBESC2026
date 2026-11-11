@@ -50,7 +50,19 @@ Para uso normal, volte para `MODO_FECHAMENTO = "meia_noite"`.
 ## No dia a dia
 - Irrigação aplicada: o sistema não mede. Registre a lâmina líquida do dia pelo Thonny:
   `import main; main.registrar_irrigacao(12.5)` e rode o `main.py` de novo. Sem registro, conta 0 mm.
-- O display alterna entre "agora" (T, UR, sol, vento, chuva) e "ontem" (ET0, ETc, classe, lâmina, minutos).
+- O display alterna entre "agora" (T, UR, sol, vento, chuva) e "ontem": ET0; quanto a planta gastou (ETc em
+  litros por planta); a classe; quanto irrigar (mm, litros por planta e minutos de válvula); e o total da área
+  em m³ (se `N_PLANTAS` estiver no `config_local`).
+
+## Litros de água
+1 mm de água sobre 1 m² = 1 litro. Por isso:
+- **Gasto do dia** (`consumo_l_planta` no diário) = ETc (mm) × área da planta (`AREA_M2`). É o que a planta consumiu.
+- **A aplicar** (`aplicar_l_planta`) = lâmina bruta (mm) × `AREA_M2`. Só quando a classe pede irrigação; repõe o
+  déficit acumulado do solo (descontada a chuva) e já inclui as perdas (÷ `EFICIENCIA`).
+- **Total da área** (`consumo_l_total`, `aplicar_l_total`) = litros por planta × `N_PLANTAS`.
+- Exemplo (manga 8 × 5 m = 40 m², ET0 6 mm, Kc 0,83): gasto de 4,98 mm = 199 L por planta; com 250 plantas
+  (1 ha), 49,8 m³ por dia. A irrigação não repõe isso todo dia: o solo guarda água, e o sistema só manda irrigar
+  quando o déficit passa do limite da classe.
 
 ## Limites conhecidos
 - **Dia incompleto:** o primeiro dia (placa ligada no meio do dia) e dias com menos de 80% de leituras

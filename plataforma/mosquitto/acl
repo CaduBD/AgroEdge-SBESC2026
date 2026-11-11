@@ -1,0 +1,12 @@
+# Backend: lê e escreve em tudo do AgroEdge
+user plataforma
+topic readwrite agroedge/#
+
+# Placas: cada uma só no próprio serial (%u = usuário MQTT = serial)
+pattern write agroedge/%u/telemetria
+pattern write agroedge/%u/diario
+pattern write agroedge/%u/irrigacao
+pattern write agroedge/%u/cmd_resp
+pattern write agroedge/%u/status
+pattern read  agroedge/%u/config
+pattern read  agroedge/%u/cmd

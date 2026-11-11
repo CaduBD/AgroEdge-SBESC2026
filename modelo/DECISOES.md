@@ -211,3 +211,115 @@ Limites:
 - Manga sem Kc fora do período floração–maturação (pós-colheita, fluxos vegetativos, indução, repouso) e sem dados da cv. Palmer.
 - O classificador continua treinado só com uva. O próximo passo é gerar o dataset sorteando culturas (Kc, p, raiz em faixas largas) e usar entradas que valham para qualquer cultura, como já foi feito com o solo (seção 5).
 
+---
+
+## 14. Classificador geral v2: várias culturas e dados faltando (10/11/2026)
+
+**Por quê:** a v1 só serve para a uva e foi testada com dados perfeitos (irrigação sempre registrada, placa ligada desde a poda). Com dados perfeitos, o próprio balanço acerta 100% do rótulo (seção 10), então a rede não tinha papel. A pergunta da v2 é: quando faltam dados, como no campo, a rede ajuda?
+
+**Como (scripts 06 e 07):**
+- Cada cenário sorteia uma cultura: 70% sintéticas (curva de Kc no formato do FAO-56, com Kc de 0,3 a 1,15, ciclo de 90 a 200 dias, p de 0,30 a 0,65, raiz de 0,4 a 1,2 m) e 30% reais da `culturas.py` (uva Itália e manga Tommy Atkins).
+- O rótulo vem do balanço com os dados verdadeiros. A rede recebe o que a placa veria: irrigação registrada completa (35%), parcial (35%) ou nunca (30%); ET0 com viés de ±10% e ruído de 5%; chuva medida 0 a 30% a menos; TAW informado com erro de ±25%; metade dos cenários com a placa ligada no meio do ciclo.
+- 37 entradas que valem para qualquer cultura: fração do ciclo no lugar do DAP, o p como entrada, somas de 3 a 28 dias e desde o início do uso divididas pelo TAW, e o balanço que a placa calcula com os dados que tem.
+- Linha de base: esse mesmo balanço da placa com os limiares das classes, sem rede.
+
+**Resultado no teste (cenários de 2009, 4.201 dias; ver `resultados_mlp_geral.md`):**
+
+| Método | Acurácia | F1 macro | Crítico detectado |
+|---|---|---|---|
+| Balanço da placa + limiares | 64,4% | 0,596 | 92,1% |
+| Rede v2 com o balanço como entrada (37-16-3, 659 parâmetros) | 70,5% | 0,680 | 87,7% |
+| Rede v2 sem o balanço | 68,9% | 0,669 | 86,6% |
+
+| Recorte (acurácia) | Balanço | Rede v2 |
+|---|---|---|
+| Irrigação registrada completa | 93,4% | 88,8% |
+| Registro parcial | 68,3% | 74,2% |
+| Nunca registra | 42,3% | 55,5% |
+| Placa ligada no meio do ciclo | 63,7% | 74,5% |
+
+**Leitura:**
+- A rede ganha do balanço quando faltam dados (irrigação mal registrada, placa ligada no meio do ciclo), e perde quando os dados estão completos. É a primeira vez que a rede tem um papel que a fórmula não cumpre.
+- O preço: detecta menos dias críticos (87,7% contra 92,1%), porque o balanço sem registro de irrigação acha que o solo está sempre secando e chama quase tudo de crítico (por isso a revocação dele é alta e a acurácia, baixa).
+- Os números absolutos são bem menores que os 90,9% da v1 porque o problema é outro: sem saber quanto foi irrigado, nenhum método sabe com certeza quanta água há no solo. **Medir a irrigação** (hidrômetro, sensor de vazão ou registro da válvula) vale mais que qualquer ajuste na rede.
+- O teste tem só 35 cenários: as diferenças de poucos pontos podem mudar com outra semente.
+
+**A decidir:** a v2 não foi para o firmware (pesos em `versoes/v2_geral/`). Opções: (a) usar a v2 quando a irrigação não for registrada e o balanço quando for; (b) usar a v2 sempre; (c) manter a v1 para a uva e reportar a v2 como trabalho em andamento. Para usar a v2 na placa, o `historico.py` precisa montar as 37 entradas novas.
+
+**Experimento: sensor de vazão em todos os cenários (`08_experimento_vazao.py`).** Mesma simulação, mas a irrigação é sempre medida, com erro de ±5%; os outros erros (ET0, chuva, TAW, placa ligada no meio do ciclo) continuam. Teste de 2009, 5.453 dias:
+
+| Situação | Balanço + limiares | Rede v2 |
+|---|---|---|
+| Geral | 88,7% (crítico 88%) | **90,7% (crítico 93%)** |
+| Placa ligada no início do ciclo | 90,5% (96%) | **92,7% (93%)** |
+| Placa ligada no meio do ciclo | 87,0% (82%) | **88,7% (93%)** |
+
+Medir a irrigação sobe a rede de 70,5% para 90,7% (+20 pontos) e o balanço de 64,4% para 88,7%. Com a irrigação medida, a rede ganha do balanço em todos os recortes e volta a passar da meta de 90%. **Conclusão: o sensor de vazão é o próximo hardware mais importante.** O conjunto de teste muda um pouco de um experimento para o outro (o sorteio é outro), então a comparação é aproximada.
+
+**Experimento: registro manual obrigatório (`09_experimento_registro.py`).** Sem sensor de vazão nem de umidade: o produtor registra a irrigação à mão, mas esquece de 2 a 15% das irrigações e erra a quantidade em até ±25% (estimando pelo tempo de válvula). Os outros erros continuam. Teste de 2009, 4.535 dias:
+
+| Situação | Balanço + limiares | Rede v2 |
+|---|---|---|
+| Geral | 86,6% (crítico 89%) | 86,5% (crítico 91%) |
+| Placa ligada no início do ciclo | 91,0% (96%) | 90,9% (94%) |
+| Placa ligada no meio do ciclo | 80,8% (73%) | 80,5% (83%) |
+
+- Exigir o registro sobe a rede de 70,5% para 86,5% (+16 pontos). Ligando a placa no início do ciclo (poda ou floração), chega a ~91%.
+- Com o registro, rede e balanço empatam na acurácia; a rede só ganha na detecção do crítico quando a placa é ligada no meio do ciclo (83% contra 73%).
+- Resumo dos três cenários de irrigação (rede v2, geral): sem registro garantido 70,5%; registro manual 86,5%; sensor de vazão 90,7%.
+
+**Recomendação prática enquanto não há sensor:** tornar o registro obrigatório e fácil (de preferência na própria placa ou no dashboard) e ligar a placa no início do ciclo.
+
+**Experimento: placa ligada logo depois de uma irrigação forte (`10_experimento_inicio_apos_irrigacao.py`).** Com registro manual (como no 09), a placa ligada no meio do ciclo só começa no primeiro dia com irrigação ou chuva de 10 mm ou mais que deixe o solo perto do cheio (déficit até 20% do TAW). Como o teste de 2009 tem poucos cenários e varia vários pontos entre sementes, a comparação foi feita com o balanço da placa em todos os anos (2000-2009) e 5 sementes (`11_inicio_varias_sementes.py`):
+
+| Placa ligada no meio do ciclo (balanço) | Acurácia | Crítico detectado |
+|---|---|---|
+| Em qualquer dia | 79,7% | 81% |
+| Logo depois de uma irrigação forte | 83,5% | 89% |
+| (referência) Ligada no início do ciclo | 83,8% a 84,4% | — |
+
+- Ligar a placa logo depois de uma irrigação forte elimina a perda de quem instala no meio do ciclo: fica igual a ligar no início.
+- **Correção:** a diferença entre ligar no início e no meio do ciclo é de ~5 pontos em todos os anos, e não ~10 como pareceu no teste de 2009 do experimento 09 (variação de amostra pequena).
+- **Procedimento de instalação:** ligar a placa no dia da poda/floração ou logo depois de uma irrigação que encha o solo.
+
+---
+
+## 15. Modelo único v3: todas as situações de campo com uma rede só (11/11/2026)
+
+**Por quê:** nos experimentos da seção 14, cada situação teve uma rede treinada só para ela. No produto, o modelo precisa ser um só, e a situação de cada local entra como parâmetro (configuração na instalação ou dashboard).
+
+**Como (scripts 12 e 13):** dataset com 1.146 cenários (120 por ano), culturas e erros de sensores como na v2. Cada cenário sorteia, com chances iguais:
+- **fonte da irrigação:** sensor de vazão (±5%); produtor informa a quantidade (esquece 2-15%, erra ±25%); produtor informa o tempo de válvula (vazão do config com erro fixo de ±20%, esquece 2-10%); registro de vez em quando (esquece 10-60%); sem informação;
+- **início do uso:** no início do ciclo; no meio, logo após uma irrigação forte; no meio, dia qualquer.
+
+A rede v3 recebe essas duas informações como 8 entradas (one-hot), além das 37 da v2: 45-16-3, 787 parâmetros, 3,5 KB.
+
+**Resultado no teste (2009, 72 cenários, 7.401 dias; ver `resultados_v3.md`):**
+
+| Método | Acurácia | Crítico detectado |
+|---|---|---|
+| Balanço + limiares | 76,4% | 92,2% |
+| Rede sem as entradas de situação | 77,2% | 85,0% |
+| Rede v3 com as entradas de situação | 79,4% | 80,1% |
+| Híbrido (balanço com sensor de vazão, v3 nas outras) | 80,0% | 80,1% |
+
+| Fonte da irrigação (acurácia) | Balanço | Rede v3 |
+|---|---|---|
+| Sensor de vazão | 87,6% | 83,3% |
+| Produtor informa a quantidade | 83,7% | 84,4% |
+| Produtor informa o tempo de válvula | 86,4% | 87,4% |
+| Registro de vez em quando | 74,7% | 78,5% |
+| Sem informação | 46,4% | 59,9% (só 24% dos críticos) |
+
+**Leitura:**
+- Saber a situação ajuda a rede (+2,2 pontos sobre a rede sem essas entradas), e o modelo único ganha do balanço em 4 das 5 fontes. Mas perde para o balanço com sensor de vazão: quando a irrigação é medida, a conta já é muito boa e a rede não precisa corrigir nada.
+- Com informação de irrigação (sensor, quantidade ou tempo de válvula), tudo fica entre 83% e 88%; a diferença entre rede e balanço é pequena.
+- **Sem informação de irrigação, nada funciona:** o balanço acha quase tudo crítico (46%), e a rede acerta mais (60%) porque passa a dizer "adequado", mas perde 76% dos dias críticos. Isso é perigoso.
+- O teste de cada combinação tem poucos cenários (de 1 a 8); diferenças de poucos pontos não são confiáveis.
+
+**Proposta para o produto:**
+1. Fonte da irrigação e início do uso viram configuração obrigatória na instalação.
+2. Sensor de vazão: usar o balanço. Quantidade ou tempo de válvula informados, ou registro parcial: usar a v3.
+3. Sem informação de irrigação: não mostrar a classe; mostrar "registre a irrigação" e só a ET0/ETc.
+4. Instalar no início do ciclo ou logo após uma irrigação forte (seção 14).
+

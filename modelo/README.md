@@ -2,12 +2,19 @@
 
 Por que o modelo é assim (MicroPython, TAW como entrada, poda em qualquer data): veja [DECISOES.md](DECISOES.md). Explicação passo a passo em [GUIA.md](GUIA.md) e linha por linha em [CODIGO_EXPLICADO.md](CODIGO_EXPLICADO.md).
 
+> **Versões do classificador:** há três versões guardadas em [`versoes/`](versoes/): **v1** (só uva, em uso no firmware),
+> **v2** e **v3** (várias culturas e dados de campo com falhas; candidatas). A comparação, a proposta e o que a equipe
+> precisa decidir estão em [`versoes/README.md`](versoes/README.md). Este README descreve a v1 (scripts 01 a 04).
+
 Rodar em ordem (Python 3, `pip install pandas scikit-learn tabulate tensorflow`):
 
 1. `python3 01_gerar_dataset.py` gera `dados/dataset_uva.csv` a partir de `dados/petrolina_clima_2000_2009.csv` (50.903 dias rotulados, 467 ciclos com solo, raiz e poda sorteados).
 2. `python3 02_comparar_modelos.py` treina MLP, SVM e Random Forest e gera `resultados_comparacao.md`.
 3. `python3 03_treinar_mlp.py` treina a MLP final no Keras, gera `../firmware/modelo/agroedge_pesos.py` e confere o `classificador.py` no teste (`resultados_mlp.md`).
 4. `python3 04_conferir_firmware.py` passa os dias de 2009 pelo caminho do firmware (`historico.py` → `classificador.py` → `lamina.py`), confere as entradas e simula a placa irrigando sozinha.
+5. `python3 05_validar_eto.py` confere o ET0 do firmware (`eto.py`) contra o DataClimaBR (RMSE 0,07 mm/dia, R² 0,999).
+
+Scripts 06 a 13 (versões v2 e v3 e experimentos de campo): ver a tabela em [`versoes/README.md`](versoes/README.md#9-como-reproduzir).
 
 ## Firmware (MicroPython)
 Em `../firmware/modelo/`, copie para a placa:

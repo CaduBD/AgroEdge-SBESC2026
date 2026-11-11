@@ -11,5 +11,6 @@ Sistema embarcado de irrigação de precisão para o Vale do São Francisco, na 
 - [`modelo/GUIA.md`](modelo/GUIA.md): explicação passo a passo.
 - [`modelo/CODIGO_EXPLICADO.md`](modelo/CODIGO_EXPLICADO.md): o código, função por função.
 - [`modelo/DECISOES.md`](modelo/DECISOES.md): por que o modelo é assim.
+- [`modelo/versoes/README.md`](modelo/versoes/README.md): **as três versões do classificador (v1 em uso, v2 e v3 candidatas), comparação e o que a equipe precisa decidir.**
 
 Equipe: Carlos Eduardo Batista Diniz, Thalles Inácio Araújo e Raimundo Ferreira do Nascimento Júnior. Orientador: Prof. Max Santana Rolemberg Farias (UNIVASF).

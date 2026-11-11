@@ -8,10 +8,10 @@ Mostra os valores no display da BitDogLab e grava um resumo por dia em `diario.c
 
 | Sensor | Pino | Onde |
 |---|---|---|
-| DHT22 (T e UR) | GPIO18 | IDC, fileira "GP18 GP19 GP20 GP4 GP9 GP8 5V", 1º pino; VCC no 3V3 |
+| AM2302 (T e UR) | GPIO17 | IDC, fileira "GND GP16 GP17 GND GP28 3V3 GND", 3º pino; VCC no 3V3, pull-up de 10 kΩ entre DATA e 3V3 |
 | Piranômetro RS-485 | UART1 GPIO8 (TX→DI), GPIO9 (RX←RO, divisor 1k/2k), GPIO4 (DE+RE) | mesma fileira; sensor em 12 V |
-| Anemômetro Met One 014A | GPIO17 | IDC, fileira "GND GP16 GP17 GND GP28 3V3 GND" |
-| Pluviômetro | GPIO16 | mesma fileira do GP17 |
+| Anemômetro Met One 014A | GPIO18 | IDC, fileira "GP18 GP19 GP20 GP4 GP9 GP8 5V", 1º pino; o outro fio no GND |
+| Pluviômetro | GPIO16 | IDC, fileira "GND GP16 GP17 GND GP28 3V3 GND", 2º pino; o outro fio no GND |
 | Relógio DS3231 (opcional) | I²C0: SDA GPIO0, SCL GPIO1, endereço 0x68 | conector I²C0; 3V3 |
 | Display OLED | I²C1 GPIO14/15 | o da própria placa |
 

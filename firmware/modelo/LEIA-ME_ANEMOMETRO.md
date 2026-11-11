@@ -26,18 +26,18 @@ No cabo Campbell original o **preto** é o sinal. Se o cabo não for original:
 Na reed tanto faz qual fio do par vai no GPIO e qual vai no GND.
 
 ## 2. Ligação
-Pino **GPIO17** (conector IDC, fileira "GND GP16 GP17 GND GP28 3V3 GND": o GP17 é o 3º, o GND o 4º e o 3V3 o 6º, contando da esquerda; confira a serigrafia). O GP16 é do pluviômetro.
+Pino **GPIO18** (conector IDC, fileira "GP18 GP19 GP20 GP4 GP9 GP8 5V": o GP18 é o 1º, contando da esquerda; confira a serigrafia). O GND e o 3V3 ficam na outra fileira ("GND GP16 GP17 GND GP28 3V3 GND": GND no 1º ou 4º pino, 3V3 no 6º). O GP17 é do AM2302 e o GP16 do pluviômetro.
 
-Teste rápido, sem componentes: um fio do par no GPIO17 e o outro no GND. O pull-up interno segura o pino em 1.
+Teste rápido, sem componentes: um fio do par no GPIO18 e o outro no GND. O pull-up interno segura o pino em 1.
 
 Ligação definitiva:
 ```
 3V3 ──[10 kΩ]──┐
-fio do sensor ─┴──[1 kΩ]──┬── GPIO17
+fio do sensor ─┴──[1 kΩ]──┬── GPIO18
                        [100 nF]
 outro fio ──── GND ───────┘
 ```
-O 10 kΩ é um pull-up mais forte que o interno (~50 kΩ) e o filtro 1 kΩ/100 nF corta picos de ruído do cabo longo. O capacitor vai do GPIO17 ao GND.
+O 10 kΩ é um pull-up mais forte que o interno (~50 kΩ) e o filtro 1 kΩ/100 nF corta picos de ruído do cabo longo. O capacitor vai do GPIO18 ao GND.
 
 ## 3. Rodar o teste
 Abra `teste_anemometro.py`, escolha `MODO = 1`, `2` ou `3` no topo e rode (Run no MicroPico/Thonny). O **botão A** passa para o próximo modo sem reiniciar. Ctrl+C para parar.
@@ -49,13 +49,13 @@ Abra `teste_anemometro.py`, escolha `MODO = 1`, `2` ou `3` no topo e rode (Run n
 | 3, debounce | Ventilador na velocidade máxima ou sopro forte | "Menor entre pulsos aceitos" perto de 1/f. Repique abaixo de 2 ms sendo rejeitado é normal na reed |
 
 Diagnóstico:
-- **"nenhum pulso em 10 s"**: par de fios errado, fio fora do GPIO17/GND, ou conchas paradas.
+- **"nenhum pulso em 10 s"**: par de fios errado, fio fora do GPIO18/GND, ou conchas paradas.
 - **Pino em 0 o tempo todo**: a reed parou fechada (gire um pouco) ou o fio do GPIO está em curto com o GND.
 - **Muitos rejeitados ou f acima de 60 Hz**: ruído. Use o 10 kΩ e o filtro RC, e afaste o cabo de fios de força.
 - **Contagem dobrando** (2 por fechamento no MODO 1): repique maior que 2 ms. Suba `ANEMO_DEBOUNCE_MS` no `config_local.py` (até ~10 ms ainda não perde pulso a 45 m/s).
 
 ## 4. Configuração (`config_local.py`)
-- `PINO_ANEMOMETRO = 17`
+- `PINO_ANEMOMETRO = 18`
 - `ANEMO_M = 0.8`, `ANEMO_B = 0.447`: calibração de fábrica do 014A.
 - `ANEMO_ALTURA_M = 2.0` (ASSUMIDO): altura das conchas. Se for instalado em outra altura, o `anemometro.py` converte para 2 m (FAO-56, eq. 47), que é o que o ET0 e o modelo usam.
 - `ANEMO_DEBOUNCE_MS = 2` (ASSUMIDO): conferir no MODO 3.

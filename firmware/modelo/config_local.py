@@ -58,8 +58,8 @@ PINO_PLUVIOMETRO = 16
 MM_POR_PULSO = 0.2794
 
 # anemômetro de conchas Met One 014A (usados por anemometro.py)
-# GPIO livre no conector de expansão, ao lado do GP16 do pluviômetro; o outro fio vai no GND
-PINO_ANEMOMETRO = 17
+# conector IDC, fileira "GP18 GP19 GP20 GP4 GP9 GP8 5V": GP18 é o 1º pino; o outro fio vai no GND
+PINO_ANEMOMETRO = 18
 # calibração de fábrica do 014A: v (m/s) = ANEMO_M × f (Hz) + ANEMO_B; com f = 0 dá 0
 ANEMO_M = 0.8
 ANEMO_B = 0.447
@@ -81,9 +81,11 @@ PINO_RS485_DE_RE = 4
 PIRANO_ENDERECO = 1
 PIRANO_BAUD = 4800
 
-# DHT22 (temperatura e umidade do ar; usados por termohigro.py)
-# conector IDC, fileira "GP18 GP19 GP20 GP4 GP9 GP8 5V": GP18 é o 1º pino
-PINO_DHT22 = 18
+# AM2302 (temperatura e umidade do ar; usados por termohigro.py). O AM2302 é o DHT22 em
+# versão com fios: mesmo protocolo, lido pelo driver dht.DHT22 do MicroPython.
+# conector IDC, fileira "GND GP16 GP17 GND GP28 3V3 GND": GP17 é o 3º pino, 3V3 o 6º;
+# pull-up de 10 kΩ entre DATA e 3V3
+PINO_AM2302 = 17
 
 # relógio DS3231 no I²C0 (usados por relogio.py); opcional se houver Wi-Fi
 PINO_I2C0_SDA = 0

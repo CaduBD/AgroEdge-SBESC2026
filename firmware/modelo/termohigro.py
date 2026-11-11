@@ -1,15 +1,16 @@
-# AgroEdge - temperatura e umidade do ar com o DHT22 (AM2302).
-# MicroPython (BitDogLab / RP2040). Usa o driver "dht" que já vem no MicroPython.
+# AgroEdge - temperatura e umidade do ar com o AM2302.
+# MicroPython (BitDogLab / RP2040). O AM2302 é o DHT22 em versão com fios (mesmo fabricante,
+# Aosong, e mesmo protocolo de 1 fio), então usa o driver dht.DHT22 que já vem no MicroPython.
 #
-# Ligação (pino em config_local.PINO_DHT22, padrão GPIO18, conector IDC fileira
-# "GP18 GP19 GP20 GP4 GP9 GP8 5V"):
-#   VCC  -> 3V3          DATA -> GPIO18 (com pull-up de 10 kΩ para 3V3; muitos módulos já têm)
-#   GND  -> GND          (o 4º pino do DHT22 "nu" fica sem ligar)
-# Cabo curto (até ~3 m). No campo, o DHT22 vai dentro de um abrigo contra radiação
+# Ligação (pino em config_local.PINO_AM2302, padrão GPIO17, conector IDC fileira
+# "GND GP16 GP17 GND GP28 3V3 GND"):
+#   VCC  -> 3V3          DATA -> GPIO17 (com pull-up de 10 kΩ para 3V3)
+#   GND  -> GND
+# Cabo curto (até ~3 m). No campo, o AM2302 vai dentro de um abrigo contra radiação
 # (pratinhos empilhados, ventilado e na sombra), longe do solo e da caixa. Ao sol direto a
 # temperatura sai vários graus acima da real e o ET0 fica errado.
 #
-# O DHT22 só pode ser lido a cada 2 s e às vezes falha (erro de checksum ou timeout): por
+# O AM2302 só pode ser lido a cada 2 s e às vezes falha (erro de checksum ou timeout): por
 # isso ler() tenta de novo e devolve None se todas as tentativas falharem.
 #
 # Uso:
@@ -34,7 +35,7 @@ try:
 except ImportError:
     cfg = None
 
-INTERVALO_MIN_MS = 2100      # o DHT22 precisa de ~2 s entre leituras
+INTERVALO_MIN_MS = 2100      # o AM2302 precisa de ~2 s entre leituras
 
 # leituras fora disso são lixo de comunicação, não clima
 T_MIN, T_MAX = -10.0, 60.0
@@ -53,8 +54,8 @@ class Termohigro:
         self._ultima_ms = None
         self.sensor = None
         if dht is not None:
-            n = getattr(cfg, "PINO_DHT22", 18) if pino is None else pino
-            self.sensor = dht.DHT22(Pin(n, Pin.IN, Pin.PULL_UP))
+            n = getattr(cfg, "PINO_AM2302", 17) if pino is None else pino
+            self.sensor = dht.DHT22(Pin(n, Pin.IN, Pin.PULL_UP))     # AM2302 = DHT22
         self._zerar()
         if arquivo:
             try:
@@ -129,7 +130,7 @@ if __name__ == "__main__":
     else:
         # teste na placa: lê a cada 2 s e mostra
         th = Termohigro(arquivo=None)
-        print("DHT22 no GPIO", getattr(cfg, "PINO_DHT22", 18))
+        print("AM2302 no GPIO", getattr(cfg, "PINO_AM2302", 17))
         while True:
             t, u = th.ler()
             if t is None:

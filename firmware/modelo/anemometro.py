@@ -8,16 +8,16 @@
 # Faixa 0-45 m/s, partida 0,45 m/s, precisão 1,5% ou 0,11 m/s. A 45 m/s, f ≈ 56 Hz
 # (~18 ms entre pulsos), então o debounce de 2 ms não perde pulso.
 #
-# Ligação oficial (pino cfg.PINO_ANEMOMETRO = GPIO17, ao lado do GP16 do pluviômetro):
+# Ligação oficial (pino cfg.PINO_ANEMOMETRO = GPIO18, 1º pino da fileira "GP18 GP19 GP20 GP4 GP9 GP8 5V"):
 #   3V3 ──[10 kΩ]──┐
-#   fio do sensor ─┴──[1 kΩ]──┬── GPIO17
+#   fio do sensor ─┴──[1 kΩ]──┬── GPIO18
 #                          [100 nF]
 #   outro fio ──── GND ───────┘
 #   O 10 kΩ é o pull-up forte (cabo longo pega menos ruído); 1 kΩ + 100 nF é um filtro RC
 #   (~0,1 ms) que segura picos sem atrasar o pulso. No cabo Campbell original o PRETO é o
 #   sinal; se o cabo não for original, ache o par com o multímetro (ver LEIA-ME_ANEMOMETRO.md).
 #   O pull-up interno é ligado sempre: com o externo não atrapalha, e sem os componentes
-#   (teste de bancada: um fio no GPIO17 e o outro no GND) é ele que segura o pino em 1.
+#   (teste de bancada: um fio no GPIO18 e o outro no GND) é ele que segura o pino em 1.
 #
 # Uso:
 #   a = anemometro.Anemometro()     # começa a contar (carrega a média do dia salva, se houver)

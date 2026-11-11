@@ -2,12 +2,12 @@
 # Copie anemometro.py, config_local.py e este arquivo para a placa (MicroPico, Thonny ou
 # `mpremote cp anemometro.py config_local.py teste_anemometro.py :`) e rode este.
 #
-# Ligação oficial (GPIO17 = cfg.PINO_ANEMOMETRO, no conector IDC ao lado do GP16):
+# Ligação oficial (GPIO18 = cfg.PINO_ANEMOMETRO, 1º pino da fileira "GP18 GP19 GP20 GP4 GP9 GP8 5V"):
 #   3V3 ──[10 kΩ]──┐
-#   fio do sensor ─┴──[1 kΩ]──┬── GPIO17
+#   fio do sensor ─┴──[1 kΩ]──┬── GPIO18
 #                          [100 nF]
 #   outro fio ──── GND ───────┘
-# Teste rápido sem componentes: um fio do par no GPIO17 e o outro no GND (o pull-up interno
+# Teste rápido sem componentes: um fio do par no GPIO18 e o outro no GND (o pull-up interno
 # está sempre ligado). Qual é o par: ver LEIA-ME_ANEMOMETRO.md (multímetro em continuidade).
 #
 # MODO 1 (contato): mostra o estado do pino ao vivo (1 = aberto, 0 = fechado) e conta cada

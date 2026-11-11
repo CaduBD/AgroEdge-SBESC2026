@@ -4,9 +4,9 @@
 #   -> lâmina de irrigação para o dia seguinte. Mostra tudo no display e grava em diario.csv.
 #
 # Sensores e pinos (todos no config_local.py):
-#   DHT22 (T e UR) ............ GPIO18
+#   AM2302 (T e UR) ........... GPIO17
 #   piranômetro RS-485 ........ UART1 GPIO8/9, DE/RE GPIO4 (MAX485)
-#   anemômetro Met One 014A ... GPIO17
+#   anemômetro Met One 014A ... GPIO18
 #   pluviômetro de báscula .... GPIO16
 #   relógio DS3231 ............ I²C0 GPIO0/1 (opcional; ou NTP pelo Wi-Fi)
 #   display OLED .............. I²C1 GPIO14/15 (o da própria BitDogLab)
@@ -39,7 +39,7 @@ ARQ_DIARIO = "diario.csv"
 ARQ_IRRIG = "irrigacao_hoje.json"
 
 TICK_S = 10            # a cada 10 s: vento e display
-LEITURA_S = 60         # a cada 60 s: DHT22 e piranômetro
+LEITURA_S = 60         # a cada 60 s: AM2302 e piranômetro
 SALVAR_S = 600         # a cada 10 min: grava os acumulados na flash
 COBERTURA_MIN = 0.8    # fração mínima do dia com leituras para o dia entrar no histórico
 VENTO_PADRAO = 2.0     # FAO-56: sem dado de vento, usar 2 m/s
@@ -220,7 +220,7 @@ class Estacao:
         print("relógio:", self.fonte_hora or ("interno" if relogio.valido() else "NÃO ACERTADO"),
               relogio.agora())
         self.display = Display()
-        self.ar = _abrir("DHT22", termohigro.Termohigro)
+        self.ar = _abrir("AM2302", termohigro.Termohigro)
         self.vento = _abrir("anemômetro", anemometro.Anemometro)
         self.chuva = _abrir("pluviômetro", pluviometro.Pluviometro)
         self.sol = _abrir("piranômetro", piranometro.criar_padrao)
@@ -248,7 +248,7 @@ class Estacao:
             print("erro ao salvar:", e)
 
     def ler_lento(self, dt):
-        """DHT22 e piranômetro (a cada LEITURA_S). dt = segundos desde a última leitura."""
+        """AM2302 e piranômetro (a cada LEITURA_S). dt = segundos desde a última leitura."""
         if self.ar:
             t, ur = self.ar.ler()
             self.ultimo["t"], self.ultimo["ur"] = t, ur

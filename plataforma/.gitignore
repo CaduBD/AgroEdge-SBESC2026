@@ -17,3 +17,8 @@ __pycache__/
 # Node
 node_modules/
 frontend/dist/
+
+# Placa de bancada: arquivos gerados com a senha MQTT
+placa_bancada/config_bancada.py
+placa_bancada/para_a_placa/
+placa_bancada/backup_placa/

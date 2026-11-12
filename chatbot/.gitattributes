@@ -1,0 +1,4 @@
+# Quebras de linha fixas, para funcionar igual em Windows, Linux e dentro dos containers:
+# Makefile com CRLF quebra no Linux; o PowerShell prefere CRLF.
+* text=auto eol=lf
+*.ps1 text eol=crlf

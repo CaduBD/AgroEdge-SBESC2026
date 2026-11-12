@@ -1,7 +1,9 @@
 """Autenticação e checagem de posse.
 
 - `usuario_atual`: resolve o usuário pelo cookie de sessão **ou** pelo cabeçalho
-  `Authorization: Bearer <token>` (token de serviço, seção 10.1).
+  `Authorization: Bearer <token>` (token de serviço, seção 10.1). O token do chatbot
+  (escopo `chatbot`) pode mandar também `X-Conversa: telegram:<chat id>` e então age
+  como o usuário que conectou aquela conversa pelo painel (vinculos_canal).
 - `garantir_acesso_*`: a **única** checagem de posse. Toda rota que recebe
   `fazenda_id`, `cultivo_id` ou `serial` passa por uma delas. Recurso de outro
   usuário responde 404, igual a recurso inexistente (não revela que existe).
@@ -19,7 +21,17 @@ from sqlmodel import col, select
 
 from app.db import obter_sessao
 from app.erros import ErroApp, nao_encontrado
-from app.models import Cultivo, Dispositivo, Fazenda, TokenServico, Usuario, agora_utc
+from app.models import (
+    Canal,
+    Cultivo,
+    Dispositivo,
+    EscopoToken,
+    Fazenda,
+    TokenServico,
+    Usuario,
+    VinculoCanal,
+    agora_utc,
+)
 
 _hasher = PasswordHasher()
 _bearer = HTTPBearer(auto_error=False, description="Token de serviço (CHATBOT_TOKEN)")
@@ -51,25 +63,79 @@ def gerar_hash_token(token: str) -> str:
 Sessao = Annotated[AsyncSession, Depends(obter_sessao)]
 
 
+CABECALHO_CONVERSA = "X-Conversa"
+
+
+async def _token_do_pedido(
+    sessao: AsyncSession, credenciais: HTTPAuthorizationCredentials | None
+) -> TokenServico | None:
+    if credenciais is None:
+        return None
+    token = (
+        await sessao.execute(
+            select(TokenServico).where(
+                col(TokenServico.token_hash) == gerar_hash_token(credenciais.credentials)
+            )
+        )
+    ).scalar_one_or_none()
+    if token is None:
+        raise ErroApp(401, "token_invalido", "Token de acesso inválido.")
+    token.ultimo_uso = agora_utc()
+    sessao.add(token)
+    return token
+
+
+def _ler_conversa(valor: str) -> tuple[Canal, str]:
+    """`telegram:123456` → (Canal.telegram, "123456")."""
+    canal, _, conversa = valor.partition(":")
+    try:
+        return Canal(canal), conversa.strip()
+    except ValueError:
+        raise ErroApp(
+            400, "conversa_invalida", f"Use {CABECALHO_CONVERSA}: <canal>:<conversa>."
+        ) from None
+
+
 async def usuario_atual(
     request: Request,
     sessao: Sessao,
     credenciais: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)] = None,
 ) -> Usuario:
-    if credenciais is not None:
-        token = (
-            await sessao.execute(
-                select(TokenServico).where(
-                    col(TokenServico.token_hash) == gerar_hash_token(credenciais.credentials)
+    """Painel: cookie de sessão. Serviços: token. O chatbot pode ainda mandar
+    `X-Conversa: telegram:<chat id>` para agir como o usuário dono daquela conversa."""
+    request.state.token = None
+    request.state.vinculo = None
+    usuario_id: int | None
+    token = await _token_do_pedido(sessao, credenciais)
+    if token is not None:
+        request.state.token = token
+        usuario_id = token.usuario_id
+        conversa = request.headers.get(CABECALHO_CONVERSA)
+        if conversa:
+            if token.escopo != EscopoToken.chatbot:
+                raise ErroApp(403, "escopo_insuficiente", "Este token não pode agir por conversas.")
+            canal, conversa_id = _ler_conversa(conversa)
+            vinculo = (
+                await sessao.execute(
+                    select(VinculoCanal).where(
+                        col(VinculoCanal.canal) == canal,
+                        col(VinculoCanal.conversa_id) == conversa_id,
+                    )
                 )
-            )
-        ).scalar_one_or_none()
-        if token is None:
-            raise ErroApp(401, "token_invalido", "Token de acesso inválido.")
-        token.ultimo_uso = agora_utc()
-        sessao.add(token)
+            ).scalar_one_or_none()
+            if vinculo is None:
+                await sessao.commit()
+                raise ErroApp(
+                    403,
+                    "conversa_nao_vinculada",
+                    "Esta conversa não está conectada a nenhuma conta AgroEdge.",
+                )
+            vinculo.ultimo_uso = agora_utc()
+            sessao.add(vinculo)
+            request.state.vinculo = vinculo
+            usuario_id = vinculo.usuario_id
         await sessao.commit()
-        usuario = await sessao.get(Usuario, token.usuario_id)
+        usuario = await sessao.get(Usuario, usuario_id)
     else:
         usuario_id = request.session.get(CHAVE_SESSAO)
         usuario = await sessao.get(Usuario, usuario_id) if usuario_id else None
@@ -81,6 +147,34 @@ async def usuario_atual(
 
 
 UsuarioAtual = Annotated[Usuario, Depends(usuario_atual)]
+
+
+async def token_chatbot(
+    sessao: Sessao,
+    credenciais: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)] = None,
+) -> TokenServico:
+    """Rotas só do chatbot: exigem token de serviço com escopo `chatbot`."""
+    token = await _token_do_pedido(sessao, credenciais)
+    if token is None:
+        raise ErroApp(401, "nao_autenticado", "Use o token do chatbot.")
+    await sessao.commit()
+    if token.escopo != EscopoToken.chatbot:
+        raise ErroApp(403, "escopo_insuficiente", "Só o token do chatbot usa esta rota.")
+    return token
+
+
+TokenChatbot = Annotated[TokenServico, Depends(token_chatbot)]
+
+
+async def vinculo_atual(request: Request, _usuario: UsuarioAtual) -> VinculoCanal:
+    """A conversa do cabeçalho X-Conversa (rotas /api/canais/conversa)."""
+    vinculo: VinculoCanal | None = request.state.vinculo
+    if vinculo is None:
+        raise ErroApp(400, "sem_conversa", f"Informe a conversa no cabeçalho {CABECALHO_CONVERSA}.")
+    return vinculo
+
+
+VinculoAtual = Annotated[VinculoCanal, Depends(vinculo_atual)]
 
 
 # ---------------------------------------------------------------- posse (funções)

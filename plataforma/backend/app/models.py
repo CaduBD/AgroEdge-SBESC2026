@@ -81,6 +81,17 @@ class EstadoComando(StrEnum):
 # ---------------------------------------------------------------- tabelas
 
 
+class EscopoToken(StrEnum):
+    usuario = "usuario"
+    chatbot = "chatbot"
+
+
+class Canal(StrEnum):
+    """Aplicativos de mensagem pelos quais o produtor fala com o chatbot."""
+
+    telegram = "telegram"
+
+
 class Usuario(SQLModel, table=True):
     __tablename__ = "usuarios"
 
@@ -100,6 +111,9 @@ class TokenServico(SQLModel, table=True):
     usuario_id: int = Field(foreign_key="usuarios.id", index=True)
     nome: str
     token_hash: str = Field(unique=True)
+    # "usuario": age só como o próprio dono. "chatbot": também age em nome das conversas
+    # vinculadas (cabeçalho X-Conversa) e recebe o SSE de todos os usuários.
+    escopo: str = Field(default=EscopoToken.usuario, sa_column_kwargs={"server_default": "usuario"})
     criado_em: NaiveDatetime = Field(default_factory=agora_utc)
     ultimo_uso: NaiveDatetime | None = None
 
@@ -292,3 +306,47 @@ class MensagemRejeitada(SQLModel, table=True):
     payload: str
     motivo: str
     recebido_em: NaiveDatetime = Field(default_factory=agora_utc, index=True)
+
+
+# ---------------------------------------------------------------- chatbot (vínculo de conversas)
+
+
+class BotCanal(SQLModel, table=True):
+    """Bot que atende um canal. O chatbot se registra ao iniciar (é daqui que sai o link)."""
+
+    __tablename__ = "bots_canal"
+
+    canal: Canal = Field(primary_key=True)
+    usuario_bot: str  # @ do bot, sem a arroba (ex.: agroedge_bot)
+    atualizado_em: NaiveDatetime = Field(default_factory=agora_utc)
+
+
+class VinculoCanal(SQLModel, table=True):
+    """Conversa de um aplicativo de mensagem ligada a um usuário da plataforma."""
+
+    __tablename__ = "vinculos_canal"
+    __table_args__ = (UniqueConstraint("canal", "conversa_id", name="uq_vinculo_canal_conversa"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    usuario_id: int = Field(foreign_key="usuarios.id", index=True)
+    canal: Canal
+    conversa_id: str  # chat id do Telegram (no WhatsApp seria o telefone)
+    nome: str | None = None  # como a conversa aparece no app (ex.: "Carlos (@carlos)")
+    alertas: bool = True
+    cultivo_id: int | None = None  # cultivo escolhido na conversa
+    criado_em: NaiveDatetime = Field(default_factory=agora_utc)
+    ultimo_uso: NaiveDatetime | None = None
+
+
+class CodigoVinculo(SQLModel, table=True):
+    """Código de uso único do QR code "Conectar Telegram" (vale poucos minutos)."""
+
+    __tablename__ = "codigos_vinculo"
+
+    codigo: str = Field(primary_key=True)
+    usuario_id: int = Field(foreign_key="usuarios.id", index=True)
+    canal: Canal
+    criado_em: NaiveDatetime = Field(default_factory=agora_utc)
+    expira_em: NaiveDatetime
+    usado_em: NaiveDatetime | None = None
+    vinculo_id: int | None = None  # conversa que usou o código (o painel mostra "conectado")

@@ -21,6 +21,7 @@ from app.db import fabrica_sessao
 from app.models import (
     Cultivo,
     Dispositivo,
+    EscopoToken,
     Fazenda,
     FonteIrrigacao,
     InicioUso,
@@ -67,8 +68,18 @@ async def _token(sessao: AsyncSession, usuario: Usuario) -> None:
         await sessao.execute(select(TokenServico).where(TokenServico.token_hash == token_hash))
     ).scalar_one_or_none()
     if existe is None:
-        sessao.add(TokenServico(usuario_id=usuario.id, nome="chatbot", token_hash=token_hash))
+        sessao.add(
+            TokenServico(
+                usuario_id=usuario.id,
+                nome="chatbot",
+                token_hash=token_hash,
+                escopo=EscopoToken.chatbot,
+            )
+        )
         log.info("token de serviço do chatbot registrado")
+    elif existe.escopo != EscopoToken.chatbot:
+        existe.escopo = EscopoToken.chatbot
+        sessao.add(existe)
 
 
 async def _dispositivo(sessao: AsyncSession, usuario: Usuario) -> Dispositivo:

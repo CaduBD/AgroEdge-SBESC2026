@@ -107,7 +107,7 @@ def instalar_substitutos() -> None:
         def set_callback(self, cb):
             self.cb = cb
 
-        def connect(self, clean_session=True):
+        def connect(self, clean_session=True, timeout=None):
             if em_queda():
                 raise OSError("rede fora (simulada)")
             cid, server, port, user, password, keepalive = self.args

@@ -103,3 +103,35 @@ Três detalhes que **só apareceram na placa real** (no PC não acontecem):
 
 Também: reconectar o Wi-Fi **sem bloquear** o laço (senão a telemetria para e a válvula pode
 ficar aberta além do tempo durante uma queda).
+
+## Teste de memória do TLS (MQTT criptografado, para o deploy na web)
+
+Medido na BitDogLab (Pico W, MicroPython 1.29, mbedTLS) com o programa de bancada inteiro
+carregado, conectando a um broker de teste só com TLS, com usuário e senha, **verificando o
+certificado** (CA de teste; SAN com o IP do servidor), TLS 1.3.
+
+| Etapa | RAM livre |
+|---|---|
+| MicroPython vazio | 184 KB |
+| Programa de bancada carregado (classificador, ET₀, histórico…) | 139 KB |
+| Contexto TLS + CA carregada | 135 KB |
+| Conectado por TLS | 112 KB |
+| Fechamento do dia (ET₀ + MLP) com o TLS aberto | 110 KB |
+
+- **Conexão TLS aberta:** ~23 KB.
+- **Pico do handshake:** precisa de **~64 KB livres** (com 56 KB falha com `ENOMEM`). Igual com
+  certificado ECDSA P-256 e RSA-2048.
+- **Folga:** o programa deixa ~135 KB livres, então sobram **~70 KB** além do pico.
+- **Tempo do handshake + login:** 1,3–1,9 s (só na conexão; depois não pesa).
+
+**Conclusão:** o MQTT com TLS cabe na placa com folga, inclusive com o classificador. Cuidados
+para o firmware definitivo:
+
+1. Faça o handshake **logo depois de ligar** ou depois de um `gc.collect()`, com a memória menos
+   fragmentada; não com o buffer de leituras cheio.
+2. Um certificado real (Let's Encrypt) vem com a cadeia intermediária, um pouco maior que a CA de
+   teste: confirme a folga no servidor de verdade.
+3. A placa precisa da **CA raiz** (ISRG Root X1 ou X2) para verificar o servidor; ~1 KB.
+4. No `umqtt.simple`, passe o contexto: `MQTTClient(..., ssl=ctx)` com
+   `ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)`, `ctx.verify_mode = ssl.CERT_REQUIRED` e
+   `ctx.load_verify_locations(cadata=CA_DER)`.

@@ -4,8 +4,10 @@ Plataforma web do AgroEdge. Recebe por MQTT o que a BitDogLab mede e calcula, gu
 mostra ao produtor e envia à placa a configuração do cultivo e comandos da válvula.
 **Nenhum cálculo agronômico é feito aqui**: tudo isso roda na placa.
 
-> Estado atual: **Fase 6 (cultivos, dispositivo e válvula)** concluída: todas as telas do
-> painel estão prontas. Falta a fase 7 (integração com a BitDogLab real).
+> Estado atual: **Fase 7 (integração com a placa)** concluída com a BitDogLab real **sem
+> sensores** (clima fictício; ET₀, classificador e lâmina do firmware rodando na placa). Veja
+> [placa_bancada/README.md](placa_bancada/README.md). Faltam os sensores e o MQTT no firmware
+> definitivo.
 
 ## Painel (frontend)
 
@@ -170,6 +172,30 @@ plataforma/
 ├── backend/            FastAPI, ingestor MQTT, SQLModel + Alembic, scripts, testes
 └── simulador/          simulador de placas
 ```
+
+## Fase 7: o que foi testado com a placa real
+
+BitDogLab (Pico W, MicroPython 1.29) no Wi-Fi 2,4 GHz, falando com o broker do notebook, com o
+programa de [placa_bancada/](placa_bancada/README.md):
+
+| Teste | Resultado |
+|---|---|
+| Wi-Fi + NTP; `ts` em UTC (o RTC da placa fica em hora local) | ok |
+| Telemetria a cada 60 s; pill "Ao vivo" com o sinal Wi-Fi real | ok |
+| Config retida ao conectar e mudança ao vivo (solo → Arenoso, v2) | ok: confirmada 54 s depois |
+| Comando "abrir 1 min" → relé GPIO19 liga e desliga; `cmd_resp` e `irrigacao` | ok |
+| Fechamento do dia na placa (ET₀, Kc, MLP, lâmina) | ok: classe 1 pediu 23,9 mm, a placa irrigou sozinha e o déficit voltou a 2 mm |
+| Broker fora por 3 min: buffer e reenvio (mais recente primeiro, depois o atrasado) | ok: sem buracos, leituras a cada 60 s |
+| Placa muda (sem fechar a conexão): LWT | ok: "Sem contato" em 93 s, com a hora real do último contato |
+| Desligamento limpo (Ctrl+C) | ok: "offline" na hora |
+
+Defeitos que só apareceram na placa e foram corrigidos: JSON cortado no `umqtt.simple` com
+texto acentuado (publicar bytes), primeiro dia fechando ao ligar (tempos medidos antes do NTP) e
+placa travando ~30 s a cada tentativa de reconexão com o broker fora (tempo-limite de 5 s e
+intervalo crescente entre tentativas).
+
+Não testado ainda: sensores reais e o ensaio de 2 h com o hotspot desligado (seção 14.5); o de
+3 min com o broker fora cobre o mesmo caminho do código.
 
 ## Decisões da fase 6 que vale conhecer
 

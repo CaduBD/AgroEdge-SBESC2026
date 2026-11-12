@@ -49,7 +49,9 @@ ARQ_BUFFER = "bancada_buffer.json"
 LOTE = getattr(cb, "LOTE", 10)  # leituras por mensagem ao esvaziar o buffer (contrato: até 50)
 BUFFER_MAX = getattr(cb, "BUFFER_MAX", 400)  # leituras guardadas sem rede (as mais antigas saem)
 PING_S = 30
-RECONEXAO_S = 10
+RECONEXAO_S = 10  # primeira espera entre tentativas; dobra a cada falha, até RECONEXAO_MAX_S
+RECONEXAO_MAX_S = 60
+CONEXAO_TIMEOUT_S = 5  # sem isso, cada tentativa com o broker fora trava a placa ~30 s
 AMOSTRAS_DIA = 96  # 15 min
 
 
@@ -189,6 +191,7 @@ class Bancada:
         self.cliente = None
         self.conectado = False
         self.t_reconectar = 0
+        self.espera_reconexao = RECONEXAO_S
         self.t_ping = time.time()
         self.config = {}
         est = ler_json(ARQ_ESTADO, {})
@@ -265,7 +268,10 @@ class Bancada:
             )
             c.set_last_will(self.topico("status"), "offline", retain=True, qos=1)
             c.set_callback(self.ao_receber)
-            c.connect(clean_session=False)
+            try:
+                c.connect(clean_session=False, timeout=CONEXAO_TIMEOUT_S)
+            except TypeError:  # umqtt.simple antigo, sem timeout
+                c.connect(clean_session=False)
             self.cliente = c
             self.conectado = True
             c.subscribe(self.topico("config"), qos=1)
@@ -628,9 +634,12 @@ class Bancada:
         try:
             while True:
                 agora = time.time()
-                if not self.conectado and agora - self.t_reconectar >= RECONEXAO_S:
+                if not self.conectado and agora - self.t_reconectar >= self.espera_reconexao:
                     self.t_reconectar = agora
-                    self.conectar()
+                    if self.conectar():
+                        self.espera_reconexao = RECONEXAO_S
+                    else:  # broker fora: tenta cada vez mais espaçado (10, 20, 40, 60 s)
+                        self.espera_reconexao = min(2 * self.espera_reconexao, RECONEXAO_MAX_S)
                 if self.conectado:
                     try:
                         self.cliente.check_msg()

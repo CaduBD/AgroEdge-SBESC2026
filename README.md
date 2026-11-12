@@ -5,6 +5,7 @@ Sistema embarcado de irrigação de precisão para o Vale do São Francisco, na 
 ## Pastas
 - [`modelo/`](modelo/README.md): dataset rotulado (uva Itália, Petrolina 2000–2009), comparação MLP × SVM × Random Forest, treino da MLP final e conferência do firmware no PC.
 - `firmware/modelo/`: o que vai para a placa, em MicroPython: programa principal (`main.py`), ET0 Penman-Monteith, drivers dos sensores (AM2302, piranômetro RS-485, anemômetro, pluviômetro, relógio DS3231/NTP), classificador, histórico de 28 dias, lâmina de irrigação e configuração do local. Ver [`firmware/modelo/LEIA-ME_ESTACAO.md`](firmware/modelo/LEIA-ME_ESTACAO.md).
+- [`chatbot/`](chatbot/README.md): bot do Telegram para o produtor (hoje, válvula com confirmação, histórico e alertas), usando a API da plataforma.
 
 ## Documentação
 - [`modelo/README.md`](modelo/README.md): como rodar e o resumo dos resultados.

@@ -1,0 +1,12 @@
+# Segredos e o que o bot guarda ficam só no computador onde ele roda
+.env
+estado_bot.json
+estado_bot.json.tmp
+
+# Python
+__pycache__/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/

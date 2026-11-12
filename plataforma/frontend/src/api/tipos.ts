@@ -269,3 +269,32 @@ export interface CultivoEntrada {
   irrigacao_automatica: boolean;
   hora_irrigacao: string;
 }
+
+// ---------------------------------------------------------------- chatbot
+
+export interface BotCanal {
+  canal: "telegram";
+  usuario_bot: string | null;
+}
+
+export interface CodigoVinculo {
+  codigo: string;
+  link: string;
+  usuario_bot: string;
+  expira_em: string;
+}
+
+export interface VinculoCanal {
+  id: number;
+  canal: "telegram";
+  nome: string | null;
+  alertas: boolean;
+  criado_em: string;
+  ultimo_uso: string | null;
+}
+
+export interface SituacaoCodigo {
+  expira_em: string;
+  usado_em: string | null;
+  vinculo: VinculoCanal | null;
+}

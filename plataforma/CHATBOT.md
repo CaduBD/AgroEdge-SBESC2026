@@ -60,6 +60,8 @@ No Windows sem `make`, use `.\tarefas.ps1 venv` (uma vez) e depois `.\tarefas.ps
 - Toda chamada leva o cabeçalho `Authorization: Bearer <token>`.
 - Token errado ou ausente: `401 {"erro": "token_invalido", ...}`.
 - O token só enxerga os dados do usuário dono dele. Recurso de outro usuário responde `404`.
+  Com o cabeçalho `X-Conversa: telegram:<chat id>`, o token do chatbot age como o usuário
+  que conectou aquela conversa pelo painel (seção 8).
 - Datas e horas vêm em **ISO 8601 UTC** (`2026-11-11T23:00:00Z`); campos `ts` em **Unix
   (segundos)**. Para mostrar ao produtor, converta para **America/Bahia (UTC−3)**.
 - Datas de dia (`data`, `data_referencia`) são do dia **local** (`AAAA-MM-DD`), sem conversão.
@@ -194,7 +196,9 @@ Regras para o cliente:
 - **Se ficar ~60 s sem receber nada (nem `ping`), a conexão morreu: reconecte.**
 - Eventos perdidos enquanto o bot estava desconectado **não voltam**: depois de reconectar,
   consulte `/resumo` dos cultivos de interesse.
-- O bot só recebe eventos de placas e cultivos do usuário dono do token.
+- O bot só recebe eventos de placas e cultivos do usuário dono do token. Com
+  `GET /api/stream?todos=true` (só o token do chatbot), chegam os eventos de **todas** as
+  contas; cada `data` traz `usuario_id`, para o bot avisar só as conversas daquela conta.
 
 Exemplo em Python (com `httpx`), só para mostrar o formato:
 
@@ -282,7 +286,7 @@ nela volta para o banco real, e o login e o token passam a ser os da equipe.
   10 min?"). Abrir água é a única ação do bot com efeito físico.
 - **Nunca fixe IDs nem seriais no código:** descubra pela API (seção 4).
 - **Nunca coloque tokens no git.** Use variáveis de ambiente ou um `.env` do bot fora do
-  repositório (o `.gitignore` da raiz já ignora arquivos `.env`).
+  repositório (o `chatbot/.gitignore` já ignora o `.env`).
 - O bot **não recalcula** nada agronômico: lâmina, classe, ET₀ e Kc vêm da placa.
 - Se o bot rodar **dentro de um navegador**, a equipe precisa liberar a origem dele em
   `CORS_ORIGENS` no `.env` da plataforma. Bot em servidor (Telegram, WhatsApp, Python) não precisa.
@@ -291,7 +295,51 @@ nela volta para o banco real, e o login e o token passam a ser os da equipe.
 
 ---
 
-## 8. Organização no repositório
+## 8. Conversas conectadas pelo painel (QR code)
+
+Quem pode usar o bot fica na plataforma, não no bot. Cada produtor conecta o próprio
+Telegram pelo painel e, a partir daí, a conversa age como a conta dele.
+
+```
+ bot liga ── PUT /api/canais/telegram/bot {"usuario_bot": "agroedge_bot"}
+ painel ──── Conta → Telegram → "Conectar Telegram"
+             POST /api/canais/telegram/codigo → QR code de https://t.me/agroedge_bot?start=<codigo>
+ celular ─── abre o link; o Telegram manda "/start <codigo>" ao bot
+ bot ─────── POST /api/canais/telegram/vincular {"codigo", "conversa_id", "nome"}
+ painel ──── GET /api/canais/codigos/<codigo> (a cada 2 s) → "conectado!"
+ bot ─────── cada pedido daquela conversa leva  X-Conversa: telegram:<chat id>
+```
+
+Tabelas: `vinculos_canal` (conversa ↔ usuário, alertas, cultivo escolhido),
+`codigos_vinculo` (código do QR, uso único, vale 10 min) e `bots_canal` (o @ do bot).
+O token de serviço ganhou o campo `escopo`: `chatbot` (criado pelo seed) pode usar
+`X-Conversa`, `?todos=true` no SSE e as rotas abaixo; `usuario` (padrão) não pode.
+
+Rotas do painel (usuário logado):
+
+| Rota | Para quê |
+|---|---|
+| `GET /api/canais/telegram` | `usuario_bot` do bot (nulo = bot nunca foi ligado) |
+| `POST /api/canais/telegram/codigo` | gera o código e o `link` do QR code (`409 bot_desligado` sem bot) |
+| `GET /api/canais/codigos/{codigo}` | se o código já foi usado e por qual conversa |
+| `GET /api/canais/vinculos` | conversas conectadas da conta |
+| `DELETE /api/canais/vinculos/{id}` | desconecta uma conversa |
+
+Rotas do chatbot (token com escopo `chatbot`):
+
+| Rota | Para quê |
+|---|---|
+| `PUT /api/canais/telegram/bot` | registra o @ do bot (o bot faz isso ao ligar) |
+| `POST /api/canais/telegram/vincular` | troca o código pelo vínculo (`404 codigo_invalido`, `409 codigo_usado`, `410 codigo_expirado`) |
+| `GET /api/canais/telegram/conversas` | todas as conversas vinculadas, com `usuario_id` e `alertas` |
+| `GET/PATCH/DELETE /api/canais/conversa` | a conversa do `X-Conversa`: preferências (`alertas`, `cultivo_id`) e desconectar |
+
+Conversa não conectada (ou desconectada pelo painel) responde
+`403 conversa_nao_vinculada`: o bot então explica como conectar.
+
+---
+
+## 9. Organização no repositório
 
 - O bot fica numa pasta própria na raiz, por exemplo `chatbot/`, ao lado de `plataforma/`.
 - Trabalhe numa branch (`git checkout -b chatbot/primeira-versao`) e abra pull request para a

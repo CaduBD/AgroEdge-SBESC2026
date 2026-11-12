@@ -16,6 +16,7 @@ from pydantic import (
 
 from app.models import (
     AcaoComando,
+    Canal,
     EstadoComando,
     EstadoIrrigacao,
     FonteIrrigacao,
@@ -415,3 +416,65 @@ class ResumoSaida(BaseModel):
     ciclo: Ciclo
     valvula: Valvula
     ultimos_7_dias: list[DiaResumo]
+
+
+# ---------------------------------------------------------------- chatbot (vínculo de conversas)
+
+
+class BotSaida(BaseModel):
+    canal: Canal
+    usuario_bot: str | None = Field(
+        description="@ do bot (sem arroba); nulo enquanto o chatbot não foi ligado"
+    )
+
+
+class BotEntrada(BaseModel):
+    usuario_bot: str = Field(
+        min_length=5, max_length=64, pattern=r"^[A-Za-z0-9_]+$", examples=["agroedge_bot"]
+    )
+
+
+class CodigoSaida(Saida):
+    codigo: str
+    link: str = Field(description="Abre o bot no Telegram já com o código (o QR code leva aqui)")
+    usuario_bot: str
+    expira_em: datetime
+
+
+class VinculoSaida(Saida):
+    id: int
+    canal: Canal
+    nome: str | None
+    alertas: bool
+    criado_em: datetime
+    ultimo_uso: datetime | None
+
+
+class SituacaoCodigo(Saida):
+    """O painel consulta enquanto mostra o QR code, para saber quando a conversa conectou."""
+
+    expira_em: datetime
+    usado_em: datetime | None
+    vinculo: VinculoSaida | None
+
+
+class VincularEntrada(BaseModel):
+    codigo: str = Field(min_length=4, max_length=64)
+    conversa_id: str = Field(min_length=1, max_length=64)
+    nome: str | None = Field(default=None, max_length=100)
+
+
+class ConversaSaida(Saida):
+    """Uma conversa vinculada, como o chatbot a enxerga."""
+
+    canal: Canal
+    conversa_id: str
+    usuario_id: int
+    usuario_nome: str
+    alertas: bool
+    cultivo_id: int | None
+
+
+class ConversaEdicao(BaseModel):
+    alertas: bool | None = None
+    cultivo_id: int | None = Field(default=None, description="0 limpa a escolha")

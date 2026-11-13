@@ -60,6 +60,9 @@ class Settings(BaseSettings):
 
     # Exibição
     broker_host_publico: str = "172.20.10.10"
+    # Porta que a placa usa (na VPS, 8883 com TLS). Vazio = a mesma do backend (MQTT_PORT).
+    broker_porta_publica: int | None = None
+    broker_tls_publico: bool = False  # a placa conecta com TLS (na VPS, sim)
     tz_exibicao: str = "America/Bahia"
 
     @property

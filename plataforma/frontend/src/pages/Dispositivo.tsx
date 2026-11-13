@@ -197,6 +197,7 @@ export function Dispositivo() {
   const configLocal = [
     `MQTT_HOST = "${d.conexao.mqtt_host}"`,
     `MQTT_PORTA = ${d.conexao.mqtt_porta}`,
+    `MQTT_TLS = ${d.conexao.mqtt_tls ? "True" : "False"}`,
     `MQTT_USUARIO = "${d.conexao.mqtt_usuario}"`,
     `MQTT_SENHA = "…"  # gerada no cadastro da placa`,
   ].join("\n");

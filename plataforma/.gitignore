@@ -22,3 +22,7 @@ frontend/dist/
 placa_bancada/config_bancada.py
 placa_bancada/para_a_placa/
 placa_bancada/backup_placa/
+
+# Produção: backups do banco e versão enviada (só no servidor)
+backups/
+VERSAO

@@ -102,7 +102,8 @@ async def detalhe(disp: DispositivoDoUsuario, sessao: Sessao) -> dict[str, Any]:
         "rejeitadas": rejeitadas,
         "conexao": ConexaoPlaca(
             mqtt_host=settings.broker_host_publico,
-            mqtt_porta=settings.mqtt_port,
+            mqtt_porta=settings.broker_porta_publica or settings.mqtt_port,
+            mqtt_tls=settings.broker_tls_publico,
             mqtt_usuario=disp.serial,
         ),
     }

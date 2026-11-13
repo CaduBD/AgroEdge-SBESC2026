@@ -187,6 +187,9 @@ plataforma/
 
 ## Segurança para a internet (preparação da VPS)
 
+Para subir na VPS (Caddy com HTTPS, broker com TLS, backup e envio), veja
+[producao/README.md](producao/README.md).
+
 Tudo controlado pelo `.env` (veja `.env.example`). No notebook nada muda: `AMBIENTE=local`.
 
 - **`AMBIENTE=producao`:** o cookie de login só trafega por HTTPS, e o app **não sobe** se o

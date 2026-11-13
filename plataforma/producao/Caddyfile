@@ -1,0 +1,36 @@
+# Caddy na VPS: HTTPS automático (Let's Encrypt) para o painel e para o broker.
+# DOMINIO e MQTT_DOMINIO vêm do .env (docker-compose.prod.yml).
+
+(seguranca) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
+{$DOMINIO} {
+	import seguranca
+	encode zstd gzip
+	request_body {
+		max_size 2MB
+	}
+	reverse_proxy app:8000 {
+		# SSE (/api/stream): repassa cada evento na hora, sem segurar em buffer.
+		flush_interval -1
+	}
+}
+
+www.{$DOMINIO} {
+	redir https://{$DOMINIO}{uri} permanent
+}
+
+# Este site existe para o Caddy tirar (e renovar) o certificado de mqtt.<domínio>.
+# O Mosquitto usa esse certificado na porta 8883 (producao/mosquitto-entrada.sh).
+{$MQTT_DOMINIO} {
+	import seguranca
+	respond "AgroEdge: o broker MQTT fica na porta 8883 (TLS)." 200
+}

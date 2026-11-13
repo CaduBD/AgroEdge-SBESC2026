@@ -681,3 +681,17 @@ async def test_editar_intervalo_publica_nova_config(logado):
     # Fora da faixa
     r = await c.patch("/api/dispositivos/agroedge-00001", json={"intervalo_telemetria_min": 0})
     assert r.status_code == 422
+
+
+async def test_conexao_da_placa_mostra_porta_e_tls_publicos(logado, monkeypatch):
+    # Na VPS a placa usa mqtt.<domínio>:8883 com TLS; o backend segue na 1883 interna.
+    monkeypatch.setattr(settings_app, "broker_host_publico", "mqtt.agroedge.tech")
+    monkeypatch.setattr(settings_app, "broker_porta_publica", 8883)
+    monkeypatch.setattr(settings_app, "broker_tls_publico", True)
+    r = await logado["cliente"].get("/api/dispositivos/agroedge-00001")
+    assert r.json()["conexao"] == {
+        "mqtt_host": "mqtt.agroedge.tech",
+        "mqtt_porta": 8883,
+        "mqtt_tls": True,
+        "mqtt_usuario": "agroedge-00001",
+    }

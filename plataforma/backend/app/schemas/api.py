@@ -269,6 +269,7 @@ class ConexaoPlaca(BaseModel):
 
     mqtt_host: str
     mqtt_porta: int
+    mqtt_tls: bool = False
     mqtt_usuario: str
 
 

@@ -39,7 +39,8 @@ if getattr(cb, "WIFI_SSID", ""):
 FUSO_S = int(getattr(cfg, "FUSO_HORAS", -3) * 3600)
 # MicroPython de algumas placas conta o tempo desde 2000; o contrato pede Unix (1970).
 EPOCH = 946684800 if time.gmtime(0)[0] == 2000 else 0
-# O relogio.py do firmware acerta o RTC na HORA LOCAL. No PC (teste), o relógio já é UTC.
+# O relogio.py do firmware acerta o RTC na HORA LOCAL. Logo depois do NTP, rtc_para_utc() passa
+# o RTC para UTC (o TLS precisa) e isto vira False. No PC (teste), o relógio já é UTC.
 RTC_LOCAL = True
 TS_MINIMO = 1704067200  # 2024-01-01: antes disso a hora não foi acertada
 
@@ -51,12 +52,31 @@ BUFFER_MAX = getattr(cb, "BUFFER_MAX", 400)  # leituras guardadas sem rede (as m
 PING_S = 30
 RECONEXAO_S = 10  # primeira espera entre tentativas; dobra a cada falha, até RECONEXAO_MAX_S
 RECONEXAO_MAX_S = 60
-CONEXAO_TIMEOUT_S = 5  # sem isso, cada tentativa com o broker fora trava a placa ~30 s
+# TLS (broker da VPS, mqtt.<domínio>:8883): a placa confere o certificado com a raiz MQTT_CA.
+MQTT_TLS = getattr(cb, "MQTT_TLS", False)
+MQTT_CA = getattr(cb, "MQTT_CA", "isrg_root_x2.der")
+# Sem timeout, cada tentativa com o broker fora trava a placa ~30 s. Com TLS, o handshake leva
+# 1,3 a 1,9 s na placa (teste de memória do README), mais a ida e volta pela internet.
+CONEXAO_TIMEOUT_S = 15 if MQTT_TLS else 5
 AMOSTRAS_DIA = 96  # 15 min
 
 
 def log(*partes):
     print("[%s]" % SERIAL, *partes)
+
+
+def rtc_para_utc():
+    """Passa o RTC da hora local (como o relogio.py do firmware deixa) para UTC.
+
+    O mbedTLS confere a validade do certificado lendo o RTC como UTC. Com o RTC 3 h atrás, um
+    certificado recém-emitido (ou renovado) parece "do futuro" e a conexão é recusada por até
+    3 h. O programa de bancada só usa ts_utc() e data_local(), que valem nos dois modos."""
+    global RTC_LOCAL
+    if not RTC_LOCAL or not NA_PLACA:
+        return
+    t = time.gmtime(time.time() - FUSO_S)  # (ano, mês, dia, h, min, s, dia_semana, dia_ano)
+    machine.RTC().datetime((t[0], t[1], t[2], t[6], t[3], t[4], t[5], 0))
+    RTC_LOCAL = False
 
 
 def ts_utc():
@@ -189,6 +209,7 @@ class Bancada:
     def __init__(self):
         self.rele = machine.Pin(getattr(cb, "PINO_RELE", 19), machine.Pin.OUT, value=0)
         self.cliente = None
+        self.ssl_ctx = None
         self.conectado = False
         self.t_reconectar = 0
         self.espera_reconexao = RECONEXAO_S
@@ -254,17 +275,32 @@ class Bancada:
     def topico(self, tipo):
         return "agroedge/%s/%s" % (SERIAL, tipo)
 
+    def contexto_tls(self):
+        """Contexto TLS criado uma vez só (a raiz tem ~0,5 KB e o contexto fica reaproveitado)."""
+        if self.ssl_ctx is None:
+            import ssl
+
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.verify_mode = ssl.CERT_REQUIRED
+            with open(MQTT_CA, "rb") as f:
+                ctx.load_verify_locations(cadata=f.read())
+            self.ssl_ctx = ctx
+        return self.ssl_ctx
+
     def conectar(self):
         if not self.wifi():
             return False
+        c = None
         try:
+            extra = {"ssl": self.contexto_tls()} if MQTT_TLS else {}
             c = MQTTClient(
                 SERIAL,
                 cb.MQTT_HOST,
-                port=getattr(cb, "MQTT_PORTA", 1883),
+                port=getattr(cb, "MQTT_PORTA", 8883 if MQTT_TLS else 1883),
                 user=cb.MQTT_USUARIO,
                 password=cb.MQTT_SENHA,
                 keepalive=60,
+                **extra
             )
             c.set_last_will(self.topico("status"), "offline", retain=True, qos=1)
             c.set_callback(self.ao_receber)
@@ -278,10 +314,15 @@ class Bancada:
             c.subscribe(self.topico("cmd"), qos=1)
             c.publish(self.topico("status"), "online", retain=True, qos=1)
             self.t_ping = time.time()
-            log("MQTT conectado em", cb.MQTT_HOST)
+            log("MQTT conectado em", cb.MQTT_HOST, "(TLS)" if MQTT_TLS else "")
             return True
-        except OSError as e:
+        except (OSError, ValueError) as e:  # ValueError: certificado recusado pelo mbedTLS
             log("MQTT não conectou:", e)
+            if c is not None and self.cliente is not c and getattr(c, "sock", None):
+                try:
+                    c.sock.close()
+                except Exception:
+                    pass
             self.cair()
             return False
 
@@ -610,6 +651,7 @@ class Bancada:
             log("sem hora válida (NTP): tentando de novo em 10 s")
             time.sleep(10)
             relogio.iniciar(usar_ntp=True)
+        rtc_para_utc()  # o TLS confere a validade do certificado pelo RTC
         log(
             "hora acertada (%s): %04d-%02d-%02d %02d:%02d local" % ((fonte,) + data_local(ts_utc()))
         )

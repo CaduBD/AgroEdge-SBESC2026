@@ -6,6 +6,27 @@ como trabalhar com dados simulados no seu computador e como ler os dados reais d
 > **Resumo:** o bot fala **só com a API REST** da plataforma (e com o SSE para alertas).
 > Ele **não** fala MQTT com a placa e **não** acessa o banco de dados diretamente.
 
+## 0. Produção (desde 13/11/2026)
+
+A plataforma está na VPS, em **https://agroedge.tech**, com os dados reais: a placa de bancada
+manda para lá e o histórico do notebook foi levado junto. **O bot de verdade roda na própria
+VPS**, como serviço do Docker (`chatbot` no `docker-compose.prod.yml`). Ele fala com a API pela
+rede interna (`http://app:8000`) e usa o `CHATBOT_TOKEN` do `.env` do servidor.
+
+| Para | Use |
+|---|---|
+| API real (testar com dados reais) | `https://agroedge.tech/api` com o `CHATBOT_TOKEN` da VPS, que o dono te passa por mensagem privada |
+| Documentação | `/api/docs` do Docker no seu computador (na VPS a página pede login). Na VPS: `GET https://agroedge.tech/api/openapi.json` com o token |
+| Desenvolver | A plataforma no seu computador com o simulador (seção 2) |
+
+**Não rode o bot de produção no seu computador.** O Telegram entrega cada mensagem a um só, então
+dois processos com o mesmo token roubam as mensagens um do outro. Para desenvolver, crie um
+segundo bot no @BotFather, só de teste.
+
+**Atualizar o bot na VPS:** depois do merge na `main`, quem tem a chave SSH roda no notebook
+`bash plataforma/producao/enviar.sh`. Ele envia `plataforma/` e `chatbot/` e reconstrói o bot. O
+token do Telegram é configurado uma vez com `bash plataforma/producao/configurar_chatbot.sh`.
+
 ---
 
 ## 1. Como os dados ficam "iguais" para todo mundo

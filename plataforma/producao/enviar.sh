@@ -36,15 +36,16 @@ if [ -n "$(git status --porcelain -- plataforma)" ]; then
 	echo "aviso: há mudanças não commitadas em plataforma/; vai só o commit $VERSAO"
 fi
 
-echo "→ enviando $VERSAO para $HOST:$PASTA"
-git archive --format=tar HEAD plataforma | ssh "$HOST" "
+echo "→ enviando $VERSAO para $HOST:$PASTA (e o chatbot para $BASE/chatbot)"
+git archive --format=tar HEAD plataforma chatbot | ssh "$HOST" "
 	set -e
 	command -v rsync >/dev/null || apt-get install -y -qq rsync >/dev/null
-	rm -rf $BASE/.novo && mkdir -p $BASE/.novo $PASTA
+	rm -rf $BASE/.novo && mkdir -p $BASE/.novo $PASTA $BASE/chatbot
 	tar -x -C $BASE/.novo
 	rsync -a --delete \
 		--exclude=/.env --exclude=/mosquitto/passwd --exclude=/backups/ --exclude=/VERSAO \
 		$BASE/.novo/plataforma/ $PASTA/
+	rsync -a --delete --exclude=/.env $BASE/.novo/chatbot/ $BASE/chatbot/
 	rm -rf $BASE/.novo
 	echo $VERSAO > $PASTA/VERSAO
 "
@@ -69,13 +70,14 @@ ssh "$HOST" "
 	docker image prune -f >/dev/null
 "
 
-# Uma conexão só (o firewall barra mais de 6 conexões SSH em 30 s).
+# Uma conexão só (o firewall barra mais de 6 conexões SSH em 30 s). Todo "docker compose
+# exec" aqui leva </dev/null: senão ele lê o resto deste script como se fosse entrada dele.
 echo "→ esperando o app (as migrações rodam na partida)"
 ssh "$HOST" "cd $PASTA && bash -s -- $MODO" <<'REMOTO'
 pronto=0
 for _ in $(seq 1 60); do
 	if docker compose exec -T app python -c \
-		'import urllib.request as u; u.urlopen("http://localhost:8000/api/saude")' >/dev/null 2>&1; then
+		'import urllib.request as u; u.urlopen("http://localhost:8000/api/saude")' >/dev/null 2>&1 </dev/null; then
 		pronto=1
 		break
 	fi
@@ -87,9 +89,9 @@ if [ "$pronto" != 1 ]; then
 	exit 1
 fi
 if [ "$1" = primeira-vez ]; then
-	docker compose exec -T app python -m scripts.seed
+	docker compose exec -T app python -m scripts.seed </dev/null
 fi
-docker compose ps --format 'table {{.Service}}\t{{.Status}}'
+docker compose ps </dev/null --format 'table {{.Service}}\t{{.Status}}'
 REMOTO
 
 DOMINIO="$(ssh "$HOST" "grep '^DOMINIO=' $PASTA/.env | cut -d= -f2")"

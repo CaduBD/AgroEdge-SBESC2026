@@ -78,9 +78,39 @@ services:
       - ./backups:/backups
       - ./producao:/producao:ro
 
+  # Chatbot do Telegram (pasta chatbot/ do repositório, do integrante do chatbot). Fala com a
+  # API pela rede interna e com o Telegram por long polling: não precisa de porta aberta.
+  # Só sobe com COMPOSE_PROFILES=chatbot no .env (producao/configurar_chatbot.sh faz isso).
+  chatbot:
+    profiles: ["chatbot"]
+    build:
+      context: ../chatbot
+      dockerfile_inline: |
+        FROM python:3.12-slim
+        ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+        WORKDIR /srv/chatbot
+        COPY pyproject.toml ./
+        COPY agroedge_bot ./agroedge_bot
+        RUN pip install .
+        WORKDIR /estado
+        CMD ["python", "-m", "agroedge_bot"]
+    restart: unless-stopped
+    environment:
+      AGROEDGE_API_URL: http://app:8000
+      AGROEDGE_TOKEN: ${CHATBOT_TOKEN:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      BOT_ALERTAS: ${BOT_ALERTAS:-diario,status,irrigacao}
+      BOT_ARQUIVO_ESTADO: /estado/estado_bot.json
+      BOT_FUSO: America/Bahia
+    volumes:
+      - chatbot_estado:/estado
+    depends_on:
+      - app
+
 volumes:
   caddy_data:
   caddy_config:
   mosquitto_data:
   mosquitto_certs:
   app_data:
+  chatbot_estado:

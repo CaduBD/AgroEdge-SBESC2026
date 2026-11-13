@@ -104,6 +104,33 @@ Três detalhes que **só apareceram na placa real** (no PC não acontecem):
 Também: reconectar o Wi-Fi **sem bloquear** o laço (senão a telemetria para e a válvula pode
 ficar aberta além do tempo durante uma queda).
 
+4. **Com TLS, o RTC precisa estar em UTC.** O mbedTLS confere a validade do certificado lendo o
+   RTC como se fosse UTC. Com o RTC na hora local (3 h atrás), um certificado recém-emitido ou
+   renovado parece "do futuro": `ValueError: The certificate validity starts in the future`, e a
+   placa fica até 3 h sem conectar depois de cada renovação (a cada ~60 dias). O programa de
+   bancada passa o RTC para UTC logo depois do NTP (`rtc_para_utc()` no `bancada.py`). No
+   firmware, o mais simples é o `relogio.py` guardar o RTC em UTC e converter para a hora local só
+   ao mostrar ou ao decidir o dia.
+5. **Erro de certificado é `ValueError`, não `OSError`:** pegue os dois na conexão, senão o
+   programa para.
+
+## Na VPS (broker com TLS na internet)
+
+A placa fala com `mqtt.agroedge.tech:8883` com TLS e confere o certificado com a raiz
+**ISRG Root X2** (`isrg_root_x2.pem`, público, ~0,5 KB). Testado em 13/11/2026:
+
+- TLS 1.2 com ECDHE-ECDSA-AES256-GCM, verificando a cadeia `YE1 ← Root YE ← ISRG Root X2`;
+- telemetria a cada 60 s, config v6 confirmada e reconexão sozinha 12 s depois de um reset.
+
+```bash
+python placa_bancada/preparar.py --vps     # lê a senha da placa na VPS pela chave SSH
+```
+
+Sem `--wifi`, o script reaproveita o Wi-Fi da última preparação. Grave na placa os arquivos de
+`para_a_placa/`: no mínimo `bancada.py`, `config_bancada.py` e `isrg_root_x2.der`.
+
+Para voltar ao broker do notebook, rode de novo com `--host IP-DO-NOTEBOOK`.
+
 ## Teste de memória do TLS (MQTT criptografado, para o deploy na web)
 
 Medido na BitDogLab (Pico W, MicroPython 1.29, mbedTLS) com o programa de bancada inteiro
@@ -131,7 +158,8 @@ para o firmware definitivo:
    fragmentada; não com o buffer de leituras cheio.
 2. Um certificado real (Let's Encrypt) vem com a cadeia intermediária, um pouco maior que a CA de
    teste: confirme a folga no servidor de verdade.
-3. A placa precisa da **CA raiz** (ISRG Root X1 ou X2) para verificar o servidor; ~1 KB.
+3. A placa precisa da **CA raiz** para verificar o servidor. Na VPS é a **ISRG Root X2**
+   (543 bytes em DER), porque o certificado do broker é ECDSA.
 4. No `umqtt.simple`, passe o contexto: `MQTTClient(..., ssl=ctx)` com
    `ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)`, `ctx.verify_mode = ssl.CERT_REQUIRED` e
    `ctx.load_verify_locations(cadata=CA_DER)`.

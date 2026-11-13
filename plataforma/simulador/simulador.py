@@ -10,6 +10,11 @@ Exemplos (a partir de plataforma/):
     python simulador/simulador.py --inicio 2026-11-01 --acelerar 96
     python simulador/simulador.py --dias 3 --acelerar 288     # 3 dias de histórico em 15 min
     python simulador/simulador.py --queda 02:00-04:00     # rede fora todo dia das 2h às 4h
+    python simulador/simulador.py --vps --dias 3 --acelerar 288   # manda para a VPS (TLS)
+
+Na VPS (--vps): mqtt.<domínio>:8883 com TLS, com a placa do simulador (agroedge-00002, para
+não brigar com a placa de bancada, que usa a 00001). A senha fica em simulador/senhas_vps.env
+(fora do git), criada por: python simulador/simulador.py --vps --cadastrar
 
 Relógio: com --inicio, o tempo simulado começa nessa data e corre --acelerar vezes mais
 rápido até alcançar a hora real; daí em diante segue em tempo real (o servidor rejeita
@@ -24,6 +29,9 @@ import json
 import logging
 import math
 import random
+import secrets
+import ssl
+import subprocess
 import sys
 import threading
 import time
@@ -82,9 +90,16 @@ def ts_local(dia: date, hora: int = 0, minuto: int = 0) -> int:
     return int(datetime(dia.year, dia.month, dia.day, hora, minuto, tzinfo=FUSO).timestamp())
 
 
-def ler_env() -> dict[str, str]:
+ARQ_SENHAS_VPS = Path(__file__).resolve().parent / "senhas_vps.env"
+SERIAL_SIMULADOR_VPS = "agroedge-00002"
+HOST_VPS = "mqtt.agroedge.tech"
+SSH_VPS = "agroedge-vps"  # alias do ~/.ssh/config (producao/README.md)
+PASTA_VPS = "/opt/agroedge/plataforma"
+
+
+def ler_env(arquivo: Path | None = None) -> dict[str, str]:
     env: dict[str, str] = {}
-    arquivo = RAIZ / ".env"
+    arquivo = arquivo or RAIZ / ".env"
     if arquivo.exists():
         for linha in arquivo.read_text(encoding="utf-8").splitlines():
             linha = linha.strip()
@@ -278,7 +293,7 @@ class Placa:
     def topico(self, tipo: str) -> str:
         return f"agroedge/{self.serial}/{tipo}"
 
-    def conectar(self, host: str, porta: int) -> None:
+    def conectar(self, host: str, porta: int, tls: bool = False) -> None:
         cliente = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
             client_id=self.serial,
@@ -286,6 +301,8 @@ class Placa:
             protocol=mqtt.MQTTv311,
         )
         cliente.username_pw_set(self.usuario, self.senha)
+        if tls:  # confere o certificado (Let's Encrypt) com as raízes do sistema
+            cliente.tls_set_context(ssl.create_default_context())
         cliente.will_set(self.topico("status"), "offline", qos=1, retain=True)
         cliente.on_connect = self._ao_conectar
         cliente.on_disconnect = self._ao_desconectar
@@ -640,6 +657,31 @@ def faixa_queda(texto: str | None) -> tuple[int, int] | None:
     return h1 * 60 + m1, h2 * 60 + m2
 
 
+def cadastrar_na_vps(serial: str) -> None:
+    """Cria (ou troca) a senha MQTT da placa do simulador na VPS e guarda só aqui, fora do git.
+    A senha vai pela entrada do ssh, sem aparecer na tela nem na linha de comando."""
+    senha = secrets.token_urlsafe(18)
+    remoto = (
+        f"read -r S && cd {PASTA_VPS} && "
+        f'python3 backend/scripts/criar_dispositivo.py {serial} --senha "$S" >/dev/null'
+    )
+    resultado = subprocess.run(
+        ["ssh", SSH_VPS, remoto],
+        # Em bytes: em modo texto o Windows manda "\r\n" e o "\r" iria junto com a senha.
+        input=(senha + "\n").encode(),
+        check=False,
+    )
+    if resultado.returncode != 0:
+        sys.exit("não consegui cadastrar na VPS (a chave SSH está no notebook?)")
+    senhas = ler_env(ARQ_SENHAS_VPS)
+    senhas[serial] = senha
+    linhas = ["# Senhas MQTT das placas do simulador na VPS (gerado pelo simulador; fora do git)"]
+    linhas += [f"{k}={v}" for k, v in senhas.items()]
+    ARQ_SENHAS_VPS.write_text("\n".join(linhas) + "\n", encoding="utf-8")
+    print(f"{serial} cadastrada na VPS; senha guardada em {ARQ_SENHAS_VPS.name}")
+    print("Instale a placa num cultivo pelo painel (tela Dispositivo) antes de simular.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -657,7 +699,38 @@ def main() -> None:
     parser.add_argument("--inicio", help="data inicial do histórico simulado, AAAA-MM-DD")
     parser.add_argument("--dias", type=int, help="atalho: --inicio = hoje menos N dias")
     parser.add_argument("--queda", help="janela diária sem rede, HH:MM-HH:MM (hora local)")
+    parser.add_argument("--tls", action="store_true", help="conecta com TLS (porta 8883)")
+    parser.add_argument(
+        "--vps",
+        action="store_true",
+        help=f"manda para a VPS: {HOST_VPS}:8883 com TLS e a placa {SERIAL_SIMULADOR_VPS}",
+    )
+    parser.add_argument(
+        "--cadastrar", action="store_true", help="com --vps: cria a senha da placa na VPS e sai"
+    )
     args = parser.parse_args()
+    if args.vps:
+        args.tls = True
+        if args.host == "localhost":
+            args.host = HOST_VPS
+        if args.porta == 1883:
+            args.porta = 8883
+        args.serial = args.serial or [SERIAL_SIMULADOR_VPS]
+        if args.cadastrar:
+            for serial in args.serial:
+                cadastrar_na_vps(serial)
+            return
+        if not args.senha:
+            senhas_vps = ler_env(ARQ_SENHAS_VPS)
+            faltam = [s for s in args.serial if s not in senhas_vps]
+            if faltam:
+                sys.exit(
+                    f"sem senha para {', '.join(faltam)} na VPS: rode antes "
+                    "python simulador/simulador.py --vps --cadastrar"
+                )
+            args.senha = [senhas_vps[s] for s in args.serial]
+    elif args.cadastrar:
+        sys.exit("--cadastrar só junto com --vps")
     if args.dias and not args.inicio:
         args.inicio = (datetime.now(FUSO).date() - timedelta(days=args.dias)).isoformat()
 
@@ -700,7 +773,7 @@ def main() -> None:
             cfg=cfg,
             relogio=relogio.agora,
         )
-        placa.conectar(args.host, args.porta)
+        placa.conectar(args.host, args.porta, tls=args.tls)
         placas.append(placa)
 
     for placa in placas:

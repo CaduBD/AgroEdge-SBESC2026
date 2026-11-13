@@ -181,7 +181,8 @@ async def docs() -> Response:
 PASTA_FRONTEND = Path(os.environ.get("FRONTEND_DIR", "../frontend/dist")).resolve()
 
 
-@app.get("/{caminho:path}", include_in_schema=False)
+# HEAD também: monitores de "site no ar" e alguns navegadores conferem a página assim.
+@app.api_route("/{caminho:path}", methods=["GET", "HEAD"], include_in_schema=False)
 async def frontend(caminho: str) -> Response:
     """Serve o painel: arquivo do build se existir; senão o index.html (rotas do React)."""
     if caminho == "api" or caminho.startswith("api/"):

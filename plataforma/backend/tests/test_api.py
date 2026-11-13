@@ -716,3 +716,8 @@ def test_env_example_carrega_no_local_e_na_producao(tmp_path):
     prod.write_text(exemplo + "\n" + extras + "\n", encoding="utf-8")
     s = Settings(_env_file=prod)
     assert s.producao and s.docs_protegidos and s.broker_porta_publica == 8883
+
+
+async def test_head_na_pagina_nao_da_405(ctx):
+    r = await ctx["cliente"].head("/")
+    assert r.status_code != 405

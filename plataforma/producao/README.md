@@ -71,8 +71,10 @@ partida do app. O `.env`, as senhas do broker e os backups do servidor não são
   `ssh agroedge-vps "cd /opt/agroedge/plataforma && python3 backend/scripts/criar_dispositivo.py agroedge-00002"`.
   O script mostra o `config_local.py` com `MQTT_HOST = "mqtt.agroedge.tech"`, `MQTT_PORTA = 8883`
   e `MQTT_TLS = True`. O broker relê as senhas sem derrubar ninguém.
-- O certificado é do Let's Encrypt, então a placa valida com a raiz ISRG. Isso fica para a fase
-  final da placa (veja `placa_bancada/README.md`, teste de TLS).
+- O certificado é do Let's Encrypt (ECDSA). Em 13/11/2026 a cadeia era
+  `mqtt.agroedge.tech ← YE1 ← Root YE ← ISRG Root X2`, com TLS 1.3. A placa valida guardando
+  a **ISRG Root X2**. Isso fica para a fase final da placa (veja `placa_bancada/README.md`,
+  teste de TLS: cabe na memória com folga).
 - A porta 1883 não fica aberta na internet. A placa de bancada, ainda sem TLS, continua no
   Docker do notebook.
 

@@ -22,8 +22,8 @@ fi
 
 fazer_backup() {
 	if [ ! -f "$BANCO" ]; then
-		echo "banco ainda não existe ($BANCO); pulando"
-		return
+		echo "banco ainda não existe ($BANCO); faço a primeira cópia quando ele aparecer"
+		return 1
 	fi
 	nome="$PASTA/agroedge-$(date -u +%Y%m%d-%H%M).db"
 	if sqlite3 "$BANCO" ".backup '$nome'" && gzip -f "$nome"; then
@@ -36,12 +36,15 @@ fazer_backup() {
 }
 
 mkdir -p "$PASTA"
-fazer_backup
-ultimo_dia=$(date -u +%Y%m%d)
+# Servidor novo: o app cria o banco segundos depois; a primeira cópia sai assim que ele existir.
+ultimo_dia=""
+fazer_backup && ultimo_dia=$(date -u +%Y%m%d)
 while true; do
 	sleep 60
 	hoje=$(date -u +%Y%m%d)
-	if [ "$(date -u +%H)" = "$HORA" ] && [ "$hoje" != "$ultimo_dia" ]; then
+	if [ -z "$ultimo_dia" ] && [ -f "$BANCO" ]; then
+		fazer_backup && ultimo_dia=$hoje
+	elif [ "$(date -u +%H)" = "$HORA" ] && [ "$hoje" != "$ultimo_dia" ]; then
 		fazer_backup
 		ultimo_dia=$hoje
 	fi

@@ -185,6 +185,25 @@ plataforma/
 - **Painel mais leve:** cada tela carrega só quando é aberta, e o gráfico do Início vem depois dos
   cards. A primeira abertura caiu de ~434 KB para ~211 KB comprimidos.
 
+## Segurança para a internet (preparação da VPS)
+
+Tudo controlado pelo `.env` (veja `.env.example`). No notebook nada muda: `AMBIENTE=local`.
+
+- **`AMBIENTE=producao`:** o cookie de login só trafega por HTTPS, e o app **não sobe** se o
+  `SESSION_SECRET` ou o `CHATBOT_TOKEN` forem curtos ou de exemplo, se a `MQTT_SENHA` estiver
+  vazia ou se a `ADMIN_SENHA` for a do exemplo. O erro diz qual variável corrigir (nunca o valor)
+  e aparece em `docker compose logs app`.
+- **Limite de tentativas de login:** 5 senhas erradas do mesmo IP em 15 min bloqueiam o login
+  desse IP até a falha mais antiga sair da janela (resposta 429, `muitas_tentativas`). Por e-mail
+  o limite é 4x maior, para ninguém de fora travar o login do dono. Acertar a senha zera a
+  contagem. E-mail inexistente gasta o mesmo tempo que um existente.
+- **Trocar a senha derruba as outras sessões** (outro navegador, celular); quem trocou continua
+  logado. Migração `0004` (coluna `usuarios.sessao_versao`).
+- **`/api/docs` e `/api/openapi.json`:** abertos no local; na produção pedem login no painel ou o
+  token (`Authorization: Bearer`), e o integrante do chatbot continua usando com o token dele.
+- **IP real atrás do Caddy:** `FORWARDED_ALLOW_IPS=*` na VPS (com a porta 8000 fechada), para o
+  limite de login enxergar o IP do visitante e não o do proxy.
+
 ## Fase 7: o que foi testado com a placa real
 
 BitDogLab (Pico W, MicroPython 1.29) no Wi-Fi 2,4 GHz, falando com o broker do notebook, com o

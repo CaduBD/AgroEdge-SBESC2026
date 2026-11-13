@@ -99,6 +99,8 @@ class Usuario(SQLModel, table=True):
     nome: str
     email: str = Field(unique=True)
     senha_hash: str
+    # Vai junto no cookie; trocar a senha incrementa e derruba as outras sessões abertas.
+    sessao_versao: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     criado_em: NaiveDatetime = Field(default_factory=agora_utc)
 
 

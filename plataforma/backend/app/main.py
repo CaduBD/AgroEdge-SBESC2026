@@ -25,7 +25,7 @@ from app.eventos import barramento
 from app.models import agora_utc
 from app.mqtt.ingestor import Ingestor
 from app.mqtt.publicador import Publicador
-from app.rotas import auth, cultivos, dispositivos, fazendas, stream
+from app.rotas import auth, canais, cultivos, dispositivos, fazendas, stream
 from app.schemas.api import Erro
 from app.servicos.comandos import expirar_comandos
 
@@ -132,7 +132,7 @@ async def _erro_http(_request: Request, erro: StarletteHTTPException) -> JSONRes
 
 # ---------------------------------------------------------------- rotas
 
-for modulo in (auth, fazendas, cultivos, dispositivos, stream):
+for modulo in (auth, fazendas, cultivos, dispositivos, stream, canais):
     app.include_router(modulo.rotas)
 
 

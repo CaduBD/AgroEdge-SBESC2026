@@ -11,6 +11,8 @@ import {
 import { api, ErroApi, ErroRede } from "./cliente";
 import { definirConexao } from "./conexao";
 import type {
+  BotCanal,
+  CodigoVinculo,
   Comando,
   Cultivo,
   CultivoEntrada,
@@ -23,7 +25,9 @@ import type {
   Irrigacao,
   Resumo,
   Serie,
+  SituacaoCodigo,
   Usuario,
+  VinculoCanal,
 } from "./tipos";
 
 export const chaves = {
@@ -39,6 +43,8 @@ export const chaves = {
     ["cultivos", cultivoId, "diarios", ...filtros] as const,
   irrigacoes: (cultivoId: number, ...filtros: string[]) =>
     ["cultivos", cultivoId, "irrigacoes", ...filtros] as const,
+  botTelegram: ["canais", "telegram"] as const,
+  vinculos: ["canais", "vinculos"] as const,
 };
 
 export function criarClienteQuery(): QueryClient {
@@ -325,5 +331,50 @@ export function useEditarDispositivo(serial: string) {
     mutationFn: (dados: { apelido?: string | null; intervalo_telemetria_min?: number }) =>
       api<DispositivoDetalhe>(`/dispositivos/${serial}`, "PATCH", dados),
     onSuccess: () => invalidarCadastro(qc),
+  });
+}
+
+// ---------------------------------------------------------------- chatbot (Conta → Telegram)
+
+export function useBotTelegram() {
+  return useQuery({
+    queryKey: chaves.botTelegram,
+    queryFn: () => api<BotCanal>("/canais/telegram"),
+  });
+}
+
+export function useVinculos() {
+  return useQuery({
+    queryKey: chaves.vinculos,
+    queryFn: () => api<VinculoCanal[]>("/canais/vinculos"),
+  });
+}
+
+/** Enquanto o QR code está na tela: consulta a cada 2 s se a conversa já conectou. */
+export function useSituacaoCodigo(codigo: string | undefined) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ["canais", "codigos", codigo ?? ""],
+    queryFn: async () => {
+      const situacao = await api<SituacaoCodigo>(`/canais/codigos/${codigo}`);
+      if (situacao.vinculo) await qc.invalidateQueries({ queryKey: chaves.vinculos });
+      return situacao;
+    },
+    enabled: !!codigo,
+    refetchInterval: (consulta) => (consulta.state.data?.vinculo ? false : 2_000),
+  });
+}
+
+export function useGerarCodigoTelegram() {
+  return useMutation({
+    mutationFn: () => api<CodigoVinculo>("/canais/telegram/codigo", "POST"),
+  });
+}
+
+export function useDesconectarConversa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/canais/vinculos/${id}`, "DELETE"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chaves.vinculos }),
   });
 }

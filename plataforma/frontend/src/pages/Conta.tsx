@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { mensagemDeErro } from "@/api/cliente";
 import { useEu, useTrocarSenha } from "@/api/consultas";
+import { CardTelegram } from "@/components/conta/CardTelegram";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,8 @@ export function Conta() {
           </div>
         </CardContent>
       </Card>
+
+      <CardTelegram />
 
       <Card>
         <CardHeader>

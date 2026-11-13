@@ -80,7 +80,14 @@ python simulador/simulador.py --dias 30 --acelerar 2000        # 30 dias de hist
 python simulador/simulador.py --inicio 2026-11-01 --acelerar 96
 python simulador/simulador.py --queda 02:00-04:00              # rede fora das 2h às 4h todo dia
 python simulador/simulador.py --serial agroedge-00002 --senha SENHA
+python simulador/simulador.py --vps --cadastrar                # uma vez: placa do simulador na VPS
+python simulador/simulador.py --vps --dias 3 --acelerar 288    # manda para https://agroedge.tech
 ```
+
+- **Na VPS (`--vps`):** conecta em `mqtt.agroedge.tech:8883` com TLS. Usa a placa
+  `agroedge-00002`, para não disputar a conexão com a placa de bancada, que é a `00001`. O
+  `--cadastrar` cria a senha no broker da VPS e guarda só em `simulador/senhas_vps.env`, fora do
+  git. Antes de simular, instale a `00002` num cultivo, pela tela Dispositivo.
 
 - **Relógio:** com `--inicio` (ou `--dias`), o tempo simulado começa nessa data e corre
   `--acelerar` vezes mais rápido até alcançar a hora real; depois segue em tempo real.

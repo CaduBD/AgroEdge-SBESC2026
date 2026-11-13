@@ -26,3 +26,6 @@ placa_bancada/backup_placa/
 # Produção: backups do banco e versão enviada (só no servidor)
 backups/
 VERSAO
+
+# Simulador: senhas das placas simuladas na VPS
+simulador/senhas_vps.env

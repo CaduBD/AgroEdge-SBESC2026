@@ -21,7 +21,8 @@ saem da rede interna do Docker.
 | `mosquitto-entrada.sh` | Copia o certificado do Caddy para o broker e reinicia o broker quando ele renova |
 | `backup.sh` | Cópia consistente do SQLite na partida e todo dia às 03h (Petrolina); guarda 14 dias |
 | `preparar_vps.sh` | Endurece um Ubuntu novo: firewall, fail2ban, SSH só por chave, swap e Docker |
-| `enviar.sh` | Roda no notebook: envia o commit atual para a VPS e sobe |
+| `enviar.sh` | Roda no notebook: envia o commit atual (`plataforma/` e `chatbot/`) para a VPS e sobe |
+| `configurar_chatbot.sh` | Roda no notebook: grava o token do bot do Telegram no `.env` da VPS e liga o chatbot |
 
 ## Servidor atual
 
@@ -72,11 +73,48 @@ partida do app. O `.env`, as senhas do broker e os backups do servidor não são
   O script mostra o `config_local.py` com `MQTT_HOST = "mqtt.agroedge.tech"`, `MQTT_PORTA = 8883`
   e `MQTT_TLS = True`. O broker relê as senhas sem derrubar ninguém.
 - O certificado é do Let's Encrypt (ECDSA). Em 13/11/2026 a cadeia era
-  `mqtt.agroedge.tech ← YE1 ← Root YE ← ISRG Root X2`, com TLS 1.3. A placa valida guardando
-  a **ISRG Root X2**. Isso fica para a fase final da placa (veja `placa_bancada/README.md`,
-  teste de TLS: cabe na memória com folga).
-- A porta 1883 não fica aberta na internet. A placa de bancada, ainda sem TLS, continua no
-  Docker do notebook.
+  `mqtt.agroedge.tech ← YE1 ← Root YE ← ISRG Root X2`. A placa valida guardando a
+  **ISRG Root X2** e precisa do RTC em UTC (veja `placa_bancada/README.md`).
+- **Placa de bancada (`agroedge-00001`):** já fala com a VPS por TLS. Para gerar os arquivos,
+  rode `python placa_bancada/preparar.py --vps`.
+- **Simulador (`agroedge-00002`):** rode `python simulador/simulador.py --vps --dias 3 --acelerar 288`.
+- A porta 1883 não fica aberta na internet.
+
+## Chatbot do Telegram
+
+Roda na VPS como serviço `chatbot` (perfil do compose), a partir da pasta `chatbot/`. Ele fala
+com a API pela rede interna e com o Telegram por long polling, então não precisa de porta aberta.
+
+Para configurar a primeira vez, ou trocar o token do bot, rode no notebook, no Git Bash:
+
+```bash
+bash producao/configurar_chatbot.sh
+```
+
+O script pede o token do @BotFather, sem mostrar na tela, e grava `TELEGRAM_BOT_TOKEN` e
+`COMPOSE_PROFILES=chatbot` no `.env` da VPS. Depois, no painel, vá em **Conta → Telegram**,
+informe o @ do bot e gere o QR code para conectar as conversas.
+
+O mesmo bot não pode rodar em dois lugares: para desenvolver, use outro bot, de teste.
+
+## Histórico do notebook (importado em 13/11/2026)
+
+O banco do notebook foi copiado para a VPS, com 3.417 leituras de 11/10 a 13/11, 33
+fechamentos e 10 irrigações. Da VPS ficaram a senha de login (a que o dono trocou) e o token do
+chatbot. O banco que a VPS tinha antes ficou guardado:
+
+- `backups/antes-da-importacao.db.gz`;
+- `agroedge-vps-inicial.db`, dentro do volume.
+
+Para repetir a importação:
+
+1. Faça uma cópia consistente do banco do notebook (`sqlite3 .backup`).
+2. Com o app parado, troque o arquivo no volume `app_data`.
+3. Rode o SQL que copia `usuarios.senha_hash`, `usuarios.sessao_versao` e `tokens_servico` do banco
+   antigo da VPS.
+
+Todo `docker compose exec` dentro de um `ssh ... bash -s` precisa de `</dev/null`. Sem isso, ele
+lê o resto do script como entrada e os passos seguintes não rodam.
 
 ## Comandos úteis (no servidor, em `/opt/agroedge/plataforma`)
 

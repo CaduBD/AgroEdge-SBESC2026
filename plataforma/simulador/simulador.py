@@ -131,7 +131,7 @@ def carregar_firmware() -> bool:
     global FW_ETO, FW_CULTURAS
     try:
         FW_ETO, FW_CULTURAS = _importar("eto"), _importar("culturas")
-    except Exception as erro:  # firmware ausente ou com erro: o simulador segue sozinho
+    except Exception as erro:  # noqa: BLE001 -- firmware ausente ou com erro: segue sozinho
         log.info("firmware indisponível em %s (%s): usando ET₀ e Kc próprios", FIRMWARE, erro)
         FW_ETO = FW_CULTURAS = None
         return False

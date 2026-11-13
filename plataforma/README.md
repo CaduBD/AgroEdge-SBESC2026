@@ -173,6 +173,18 @@ plataforma/
 └── simulador/          simulador de placas
 ```
 
+## Ajustes depois da Fase 7
+
+- **Intervalo de telemetria pelo painel** (tela Dispositivo, card "Configuração da placa", ou
+  `PATCH /api/dispositivos/{serial}`): de 1 a 60 min. Com a placa instalada, gera nova versão da
+  config, e a tela mostra "Aguardando a placa…" até ela confirmar.
+- **Toast "Configuração aplicada" que se perdia:** com a aba em segundo plano, o stream fecha
+  depois de 15 s e o evento da placa não chega. Agora a própria tela avisa quando vê a mudança de
+  "Aguardando" para "Aplicado", e o aviso sai uma vez só, venha do evento ou da tela. Testado
+  com a placa real e a aba escondida.
+- **Painel mais leve:** cada tela carrega só quando é aberta, e o gráfico do Início vem depois dos
+  cards. A primeira abertura caiu de ~434 KB para ~211 KB comprimidos.
+
 ## Fase 7: o que foi testado com a placa real
 
 BitDogLab (Pico W, MicroPython 1.29) no Wi-Fi 2,4 GHz, falando com o broker do notebook, com o

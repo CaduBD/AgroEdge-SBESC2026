@@ -15,6 +15,7 @@ import { chaves } from "@/api/consultas";
 import type { Cultivo, Fazenda } from "@/api/tipos";
 import { numero } from "@/lib/formatar";
 import { RESULTADO_COMANDO } from "@/lib/rotulos";
+import { avisarUmaVez, idToastConfig } from "@/lib/toasts";
 
 interface DadosEvento {
   serial: string;
@@ -98,7 +99,13 @@ function tratar(qc: QueryClient, fila: ReturnType<typeof criarFila>, tipo: strin
       fila.add(["fazendas"]); // listas de cultivos trazem o estado da configuração
       if (cid != null) fila.add(["cultivos", cid]);
       dispositivo();
-      toast.success(`Configuração v${d.cfg_v} aplicada na placa${de}`);
+      // Mesmo aviso da tela (EstadoConfiguracao): sai uma vez só, venha de onde vier.
+      {
+        const id = idToastConfig(Number(d.instalacao_id), Number(d.cfg_v));
+        avisarUmaVez(id, () =>
+          toast.success(`Configuração v${d.cfg_v} aplicada na placa${de}`, { id }),
+        );
+      }
       break;
     case "comando": {
       cultivo("resumo");

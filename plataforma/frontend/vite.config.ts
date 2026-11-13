@@ -18,10 +18,11 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Bibliotecas grandes em arquivos próprios: mudam pouco e ficam em cache.
+        // React em arquivo próprio: muda pouco e fica em cache entre versões do painel.
+        // O resto (gráficos, formulários, tabelas, calendário) já vai em arquivos separados
+        // porque as telas e o gráfico do Início são carregados sob demanda.
         manualChunks: {
-          graficos: ["recharts"],
-          react: ["react", "react-dom", "react-router-dom"],
+          react: ["react", "react-dom", "react-dom/client", "react-router-dom"],
         },
       },
     },

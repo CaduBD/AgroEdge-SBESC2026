@@ -318,3 +318,12 @@ export function useInstalar(serial: string) {
     onSuccess: () => invalidarCadastro(qc),
   });
 }
+
+export function useEditarDispositivo(serial: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dados: { apelido?: string | null; intervalo_telemetria_min?: number }) =>
+      api<DispositivoDetalhe>(`/dispositivos/${serial}`, "PATCH", dados),
+    onSuccess: () => invalidarCadastro(qc),
+  });
+}

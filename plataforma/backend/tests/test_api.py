@@ -555,3 +555,29 @@ async def test_stream_envia_algo_logo_ao_conectar(base):
 async def test_stream_sem_token_nega(ctx):
     r = await ctx["cliente"].get("/api/stream")
     assert r.status_code == 401
+
+
+async def test_editar_intervalo_publica_nova_config(logado):
+    c, pub = logado["cliente"], logado["pub"]
+    # Sem instalação: só salva, não publica
+    r = await c.patch(
+        "/api/dispositivos/agroedge-00001",
+        json={"intervalo_telemetria_min": 5, "apelido": " Bancada "},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["intervalo_telemetria_min"] == 5 and r.json()["apelido"] == "Bancada"
+    assert pub.configs == []
+    # Com instalação: nova versão da config, com o intervalo novo
+    await c.post(
+        "/api/dispositivos/agroedge-00001/instalar", json={"cultivo_id": logado["manga"].id}
+    )
+    r = await c.patch("/api/dispositivos/agroedge-00001", json={"intervalo_telemetria_min": 10})
+    assert r.json()["instalacao"]["cfg_v"] == 2
+    assert pub.configs[-1][1]["intervalo_telemetria_min"] == 10 and pub.configs[-1][1]["cfg_v"] == 2
+    # Mesmo valor: nada muda
+    n = len(pub.configs)
+    await c.patch("/api/dispositivos/agroedge-00001", json={"intervalo_telemetria_min": 10})
+    assert len(pub.configs) == n
+    # Fora da faixa
+    r = await c.patch("/api/dispositivos/agroedge-00001", json={"intervalo_telemetria_min": 0})
+    assert r.status_code == 422

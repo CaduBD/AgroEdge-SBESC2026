@@ -3,6 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Valores de exemplo do .env.example e padrões do código: em produção, nenhum deles vale.
@@ -64,6 +65,12 @@ class Settings(BaseSettings):
     broker_porta_publica: int | None = None
     broker_tls_publico: bool = False  # a placa conecta com TLS (na VPS, sim)
     tz_exibicao: str = "America/Bahia"
+
+    @field_validator("docs_publicos", "broker_porta_publica", mode="before")
+    @classmethod
+    def _vazio_e_nenhum(cls, valor: object) -> object:
+        """`DOCS_PUBLICOS=` (vazio, como no .env.example) quer dizer "automático"."""
+        return None if isinstance(valor, str) and not valor.strip() else valor
 
     @property
     def producao(self) -> bool:

@@ -695,3 +695,24 @@ async def test_conexao_da_placa_mostra_porta_e_tls_publicos(logado, monkeypatch)
         "mqtt_tls": True,
         "mqtt_usuario": "agroedge-00001",
     }
+
+
+def test_env_example_carrega_no_local_e_na_producao(tmp_path):
+    # O .env.example tem variáveis vazias (DOCS_PUBLICOS=); um .env gerado dele tem que subir.
+    import sys
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(raiz / "backend" / "scripts"))
+    from gerar_env import valores_de_producao
+
+    exemplo = (raiz / ".env.example").read_text(encoding="utf-8")
+    local = tmp_path / "local.env"
+    local.write_text(exemplo, encoding="utf-8")
+    assert Settings(_env_file=local).docs_publicos is None
+
+    prod = tmp_path / "prod.env"
+    extras = "\n".join(f"{k}={v}" for k, v in valores_de_producao("agroedge.tech").items())
+    prod.write_text(exemplo + "\n" + extras + "\n", encoding="utf-8")
+    s = Settings(_env_file=prod)
+    assert s.producao and s.docs_protegidos and s.broker_porta_publica == 8883

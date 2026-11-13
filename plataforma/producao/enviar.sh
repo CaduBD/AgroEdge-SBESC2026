@@ -67,9 +67,30 @@ ssh "$HOST" "
 	test -f .env || { echo 'falta o .env: use --primeira-vez SEU-DOMINIO'; exit 1; }
 	docker compose up -d --build --remove-orphans
 	docker image prune -f >/dev/null
-	$([ "$MODO" = primeira-vez ] && echo 'until docker compose exec -T app python -c "import urllib.request as u; u.urlopen(\"http://localhost:8000/api/saude\")" >/dev/null 2>&1; do sleep 3; done; docker compose exec -T app python -m scripts.seed')
-	docker compose ps --format 'table {{.Service}}\t{{.Status}}'
 "
+
+# Uma conexão só (o firewall barra mais de 6 conexões SSH em 30 s).
+echo "→ esperando o app (as migrações rodam na partida)"
+ssh "$HOST" "cd $PASTA && bash -s -- $MODO" <<'REMOTO'
+pronto=0
+for _ in $(seq 1 60); do
+	if docker compose exec -T app python -c \
+		'import urllib.request as u; u.urlopen("http://localhost:8000/api/saude")' >/dev/null 2>&1; then
+		pronto=1
+		break
+	fi
+	sleep 3
+done
+if [ "$pronto" != 1 ]; then
+	echo "o app não subiu em 3 min; últimas linhas do log:"
+	docker compose logs --tail=30 app
+	exit 1
+fi
+if [ "$1" = primeira-vez ]; then
+	docker compose exec -T app python -m scripts.seed
+fi
+docker compose ps --format 'table {{.Service}}\t{{.Status}}'
+REMOTO
 
 DOMINIO="$(ssh "$HOST" "grep '^DOMINIO=' $PASTA/.env | cut -d= -f2")"
 echo "→ conferindo https://$DOMINIO/api/saude"

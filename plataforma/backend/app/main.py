@@ -10,14 +10,18 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.security import HTTPAuthorizationCredentials
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.auth import Sessao, _bearer, usuario_atual
 from app.config import obter_settings
 from app.db import fabrica_sessao
 from app.erros import ErroApp
@@ -67,6 +71,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 settings = obter_settings()
+if settings.producao and (problemas := settings.problemas_de_producao()):
+    # Melhor não subir do que subir aberto: o erro aparece no "docker compose logs app".
+    raise RuntimeError(
+        "AMBIENTE=producao com configuração insegura no .env:\n- " + "\n- ".join(problemas)
+    )
+
 app = FastAPI(
     title="AgroEdge",
     description=(
@@ -76,8 +86,9 @@ app = FastAPI(
     ),
     version="0.2.0",
     lifespan=lifespan,
-    docs_url="/api/docs",
-    openapi_url="/api/openapi.json",
+    # As rotas da documentação ficam lá embaixo, para poder exigir login na produção.
+    docs_url=None,
+    openapi_url=None,
     redoc_url=None,
     responses={401: {"model": Erro}, 404: {"model": Erro}},
 )
@@ -88,7 +99,7 @@ app.add_middleware(
     session_cookie="agroedge_sessao",
     max_age=SESSAO_DIAS * 86400,
     same_site="lax",
-    https_only=False,  # local, sem HTTPS (seção 2)
+    https_only=settings.producao,  # na VPS o cookie só trafega por HTTPS
 )
 origens = [o.strip() for o in settings.cors_origens.split(",") if o.strip()]
 if origens:
@@ -142,12 +153,36 @@ async def saude() -> dict[str, object]:
     return {"ok": True, "mqtt_conectado": bool(ingestor and ingestor.cliente)}
 
 
+# ---------------------------------------------------------------- documentação da API
+
+
+async def _acesso_docs(
+    request: Request,
+    sessao: Sessao,
+    credenciais: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)] = None,
+) -> None:
+    """No local, aberta. Na produção, só com login no painel (cookie) ou com token."""
+    if settings.docs_protegidos:
+        await usuario_atual(request, sessao, credenciais)
+
+
+@app.get("/api/openapi.json", include_in_schema=False, dependencies=[Depends(_acesso_docs)])
+async def openapi() -> JSONResponse:
+    return JSONResponse(app.openapi())
+
+
+@app.get("/api/docs", include_in_schema=False, dependencies=[Depends(_acesso_docs)])
+async def docs() -> Response:
+    return get_swagger_ui_html(openapi_url="/api/openapi.json", title="AgroEdge · API")
+
+
 # ---------------------------------------------------------------- frontend (build do Vite)
 
 PASTA_FRONTEND = Path(os.environ.get("FRONTEND_DIR", "../frontend/dist")).resolve()
 
 
-@app.get("/{caminho:path}", include_in_schema=False)
+# HEAD também: monitores de "site no ar" e alguns navegadores conferem a página assim.
+@app.api_route("/{caminho:path}", methods=["GET", "HEAD"], include_in_schema=False)
 async def frontend(caminho: str) -> Response:
     """Serve o painel: arquivo do build se existir; senão o index.html (rotas do React)."""
     if caminho == "api" or caminho.startswith("api/"):

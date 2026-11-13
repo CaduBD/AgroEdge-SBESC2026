@@ -23,11 +23,13 @@ from app.schemas.api import (
     ComandoSaida,
     ConexaoPlaca,
     DispositivoDetalhe,
+    DispositivoEdicao,
     DispositivoSaida,
     InstalacaoSaida,
     InstalarEntrada,
 )
 from app.servicos.comandos import criar_comando
+from app.servicos.configuracao import reconfigurar_dispositivo
 from app.servicos.consultas import ultima_leitura_do_dispositivo
 from app.servicos.instalacoes import instalar
 from app.servicos.status import status_dispositivo
@@ -100,10 +102,33 @@ async def detalhe(disp: DispositivoDoUsuario, sessao: Sessao) -> dict[str, Any]:
         "rejeitadas": rejeitadas,
         "conexao": ConexaoPlaca(
             mqtt_host=settings.broker_host_publico,
-            mqtt_porta=settings.mqtt_port,
+            mqtt_porta=settings.broker_porta_publica or settings.mqtt_port,
+            mqtt_tls=settings.broker_tls_publico,
             mqtt_usuario=disp.serial,
         ),
     }
+
+
+@rotas.patch("/{serial}", response_model=DispositivoDetalhe)
+async def editar(
+    entrada: DispositivoEdicao,
+    disp: DispositivoDoUsuario,
+    sessao: Sessao,
+    publicador: PublicadorDep,
+) -> dict[str, Any]:
+    """Muda o apelido ou o intervalo de telemetria. Com a placa instalada, um intervalo novo
+    gera nova versão da config (a placa confirma na próxima telemetria)."""
+    dados = entrada.model_dump(exclude_unset=True)
+    if "apelido" in dados:
+        disp.apelido = (dados["apelido"] or "").strip() or None
+    novo = dados.get("intervalo_telemetria_min")
+    if novo is not None and novo != disp.intervalo_telemetria_min:
+        disp.intervalo_telemetria_min = novo
+        sessao.add(disp)
+        await reconfigurar_dispositivo(sessao, publicador, disp)
+    sessao.add(disp)
+    await sessao.commit()
+    return await detalhe(disp, sessao)
 
 
 @rotas.post("/{serial}/instalar", response_model=InstalacaoSaida, status_code=201)

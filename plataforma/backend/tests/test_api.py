@@ -10,8 +10,11 @@ from sqlmodel import col, select
 
 import app.db as db
 from app.auth import gerar_hash_senha, gerar_hash_token
+from app.config import Settings
 from app.db import obter_sessao
+from app.limite_login import LimiteLogin
 from app.main import app
+from app.main import settings as settings_app
 from app.models import (
     Comando,
     Cultivo,
@@ -26,6 +29,7 @@ from app.models import (
     agora_utc,
     datetime_para_ts,
 )
+from app.rotas.auth import limite_login
 from app.servicos.comandos import expirar_comandos
 from app.servicos.ingestao import processar_mensagem
 from tests.conftest import PublicadorFalso
@@ -53,6 +57,7 @@ async def ctx(fabrica, base, monkeypatch) -> AsyncIterator[dict]:
     monkeypatch.setattr(db, "fabrica_sessao", fabrica)
     publicador = PublicadorFalso()
     app.state.publicador = publicador
+    limite_login.limpar()
     transporte = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transporte, base_url="http://teste") as cliente:
         yield {**base, "cliente": cliente, "pub": publicador, "fabrica": fabrica}
@@ -134,6 +139,101 @@ async def test_troca_de_senha(logado):
     await c.post("/api/auth/logout")
     r = await c.post("/api/auth/login", json={"email": "equipe@teste", "senha": "nova-senha-123"})
     assert r.status_code == 200
+
+
+async def test_troca_de_senha_derruba_as_outras_sessoes(logado):
+    outro = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://teste")
+    async with outro:
+        r = await outro.post("/api/auth/login", json={"email": "equipe@teste", "senha": SENHA})
+        assert r.status_code == 200
+        r = await logado["cliente"].patch(
+            "/api/auth/senha", json={"senha_atual": SENHA, "senha_nova": "nova-senha-123"}
+        )
+        assert r.status_code == 200
+        assert (await outro.get("/api/auth/eu")).status_code == 401  # o outro navegador caiu
+    assert (await logado["cliente"].get("/api/auth/eu")).status_code == 200  # quem trocou, não
+
+
+async def test_login_bloqueia_depois_de_muitas_falhas(ctx):
+    c = ctx["cliente"]
+    errada = {"email": "equipe@teste", "senha": "chute"}
+    for _ in range(limite_login.max_falhas):
+        assert (await c.post("/api/auth/login", json=errada)).status_code == 401
+    r = await c.post("/api/auth/login", json={"email": "equipe@teste", "senha": SENHA})
+    assert r.status_code == 429  # nem a senha certa entra durante o bloqueio
+    assert r.json()["erro"] == "muitas_tentativas"
+
+
+async def test_login_certo_zera_as_falhas(ctx):
+    c = ctx["cliente"]
+    errada = {"email": "equipe@teste", "senha": "chute"}
+    for _ in range(limite_login.max_falhas - 1):
+        await c.post("/api/auth/login", json=errada)
+    assert (
+        await c.post("/api/auth/login", json={"email": "equipe@teste", "senha": SENHA})
+    ).status_code == 200
+    for _ in range(limite_login.max_falhas - 1):
+        assert (await c.post("/api/auth/login", json=errada)).status_code == 401
+
+
+async def test_login_de_email_inexistente_tambem_conta(ctx):
+    c = ctx["cliente"]
+    for _ in range(limite_login.max_falhas):
+        await c.post("/api/auth/login", json={"email": "ninguem@teste", "senha": "x"})
+    r = await c.post("/api/auth/login", json={"email": "equipe@teste", "senha": SENHA})
+    assert r.status_code == 429  # o bloqueio é do IP
+
+
+def test_limite_login_libera_depois_da_janela():
+    agora = [1000.0]
+    limite = LimiteLogin(max_falhas=2, janela_s=60, relogio=lambda: agora[0])
+    chaves = [("ip:1", 2)]
+    limite.falhou(["ip:1"])
+    limite.falhou(["ip:1"])
+    assert limite.espera_s(chaves) == 60
+    agora[0] += 59
+    assert limite.espera_s(chaves) == 1
+    agora[0] += 1
+    assert limite.espera_s(chaves) == 0
+
+
+def test_producao_recusa_segredos_de_exemplo():
+    s = Settings(
+        _env_file=None,
+        ambiente="producao",
+        session_secret="gere-um-valor-aleatorio-longo",
+        chatbot_token="curto",
+        mqtt_senha="",
+        mqtt_habilitado=True,  # o conftest desliga o MQTT nos testes
+        admin_senha="troque-esta-senha",
+    )
+    problemas = " ".join(s.problemas_de_producao())
+    for nome in ("SESSION_SECRET", "CHATBOT_TOKEN", "MQTT_SENHA", "ADMIN_SENHA"):
+        assert nome in problemas
+    assert "gere-um-valor" not in problemas  # nunca mostra o valor
+
+
+def test_producao_aceita_segredos_fortes():
+    s = Settings(
+        _env_file=None,
+        ambiente="producao",
+        session_secret="a" * 43,
+        chatbot_token="b" * 43,
+        mqtt_senha="c" * 20,
+        admin_senha="senha-forte-do-dono",
+    )
+    assert s.problemas_de_producao() == []
+    assert s.docs_protegidos
+
+
+async def test_docs_com_login_na_producao(ctx, monkeypatch):
+    monkeypatch.setattr(settings_app, "docs_publicos", False)
+    c = ctx["cliente"]
+    assert (await c.get("/api/openapi.json")).status_code == 401
+    assert (await c.get("/api/docs")).status_code == 401
+    assert (await c.get("/api/openapi.json", headers=BEARER)).status_code == 200
+    await c.post("/api/auth/login", json={"email": "equipe@teste", "senha": SENHA})
+    assert (await c.get("/api/docs")).status_code == 200
 
 
 # ---------------------------------------------------------------- posse
@@ -555,3 +655,69 @@ async def test_stream_envia_algo_logo_ao_conectar(base):
 async def test_stream_sem_token_nega(ctx):
     r = await ctx["cliente"].get("/api/stream")
     assert r.status_code == 401
+
+
+async def test_editar_intervalo_publica_nova_config(logado):
+    c, pub = logado["cliente"], logado["pub"]
+    # Sem instalação: só salva, não publica
+    r = await c.patch(
+        "/api/dispositivos/agroedge-00001",
+        json={"intervalo_telemetria_min": 5, "apelido": " Bancada "},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["intervalo_telemetria_min"] == 5 and r.json()["apelido"] == "Bancada"
+    assert pub.configs == []
+    # Com instalação: nova versão da config, com o intervalo novo
+    await c.post(
+        "/api/dispositivos/agroedge-00001/instalar", json={"cultivo_id": logado["manga"].id}
+    )
+    r = await c.patch("/api/dispositivos/agroedge-00001", json={"intervalo_telemetria_min": 10})
+    assert r.json()["instalacao"]["cfg_v"] == 2
+    assert pub.configs[-1][1]["intervalo_telemetria_min"] == 10 and pub.configs[-1][1]["cfg_v"] == 2
+    # Mesmo valor: nada muda
+    n = len(pub.configs)
+    await c.patch("/api/dispositivos/agroedge-00001", json={"intervalo_telemetria_min": 10})
+    assert len(pub.configs) == n
+    # Fora da faixa
+    r = await c.patch("/api/dispositivos/agroedge-00001", json={"intervalo_telemetria_min": 0})
+    assert r.status_code == 422
+
+
+async def test_conexao_da_placa_mostra_porta_e_tls_publicos(logado, monkeypatch):
+    # Na VPS a placa usa mqtt.<domínio>:8883 com TLS; o backend segue na 1883 interna.
+    monkeypatch.setattr(settings_app, "broker_host_publico", "mqtt.agroedge.tech")
+    monkeypatch.setattr(settings_app, "broker_porta_publica", 8883)
+    monkeypatch.setattr(settings_app, "broker_tls_publico", True)
+    r = await logado["cliente"].get("/api/dispositivos/agroedge-00001")
+    assert r.json()["conexao"] == {
+        "mqtt_host": "mqtt.agroedge.tech",
+        "mqtt_porta": 8883,
+        "mqtt_tls": True,
+        "mqtt_usuario": "agroedge-00001",
+    }
+
+
+def test_env_example_carrega_no_local_e_na_producao(tmp_path):
+    # O .env.example tem variáveis vazias (DOCS_PUBLICOS=); um .env gerado dele tem que subir.
+    import sys
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(raiz / "backend" / "scripts"))
+    from gerar_env import valores_de_producao
+
+    exemplo = (raiz / ".env.example").read_text(encoding="utf-8")
+    local = tmp_path / "local.env"
+    local.write_text(exemplo, encoding="utf-8")
+    assert Settings(_env_file=local).docs_publicos is None
+
+    prod = tmp_path / "prod.env"
+    extras = "\n".join(f"{k}={v}" for k, v in valores_de_producao("agroedge.tech").items())
+    prod.write_text(exemplo + "\n" + extras + "\n", encoding="utf-8")
+    s = Settings(_env_file=prod)
+    assert s.producao and s.docs_protegidos and s.broker_porta_publica == 8883
+
+
+async def test_head_na_pagina_nao_da_405(ctx):
+    r = await ctx["cliente"].head("/")
+    assert r.status_code != 405

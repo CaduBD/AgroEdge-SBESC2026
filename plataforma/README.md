@@ -4,8 +4,10 @@ Plataforma web do AgroEdge. Recebe por MQTT o que a BitDogLab mede e calcula, gu
 mostra ao produtor e envia à placa a configuração do cultivo e comandos da válvula.
 **Nenhum cálculo agronômico é feito aqui**: tudo isso roda na placa.
 
-> Estado atual: **Fase 6 (cultivos, dispositivo e válvula)** concluída: todas as telas do
-> painel estão prontas. Falta a fase 7 (integração com a BitDogLab real).
+> Estado atual: **Fase 7 (integração com a placa)** concluída com a BitDogLab real **sem
+> sensores** (clima fictício; ET₀, classificador e lâmina do firmware rodando na placa). Veja
+> [placa_bancada/README.md](placa_bancada/README.md). Faltam os sensores e o MQTT no firmware
+> definitivo.
 
 ## Painel (frontend)
 
@@ -170,6 +172,64 @@ plataforma/
 ├── backend/            FastAPI, ingestor MQTT, SQLModel + Alembic, scripts, testes
 └── simulador/          simulador de placas
 ```
+
+## Ajustes depois da Fase 7
+
+- **Intervalo de telemetria pelo painel** (tela Dispositivo, card "Configuração da placa", ou
+  `PATCH /api/dispositivos/{serial}`): de 1 a 60 min. Com a placa instalada, gera nova versão da
+  config, e a tela mostra "Aguardando a placa…" até ela confirmar.
+- **Toast "Configuração aplicada" que se perdia:** com a aba em segundo plano, o stream fecha
+  depois de 15 s e o evento da placa não chega. Agora a própria tela avisa quando vê a mudança de
+  "Aguardando" para "Aplicado", e o aviso sai uma vez só, venha do evento ou da tela. Testado
+  com a placa real e a aba escondida.
+- **Painel mais leve:** cada tela carrega só quando é aberta, e o gráfico do Início vem depois dos
+  cards. A primeira abertura caiu de ~434 KB para ~211 KB comprimidos.
+
+## Segurança para a internet (preparação da VPS)
+
+Para subir na VPS (Caddy com HTTPS, broker com TLS, backup e envio), veja
+[producao/README.md](producao/README.md).
+
+Tudo controlado pelo `.env` (veja `.env.example`). No notebook nada muda: `AMBIENTE=local`.
+
+- **`AMBIENTE=producao`:** o cookie de login só trafega por HTTPS, e o app **não sobe** se o
+  `SESSION_SECRET` ou o `CHATBOT_TOKEN` forem curtos ou de exemplo, se a `MQTT_SENHA` estiver
+  vazia ou se a `ADMIN_SENHA` for a do exemplo. O erro diz qual variável corrigir (nunca o valor)
+  e aparece em `docker compose logs app`.
+- **Limite de tentativas de login:** 5 senhas erradas do mesmo IP em 15 min bloqueiam o login
+  desse IP até a falha mais antiga sair da janela (resposta 429, `muitas_tentativas`). Por e-mail
+  o limite é 4x maior, para ninguém de fora travar o login do dono. Acertar a senha zera a
+  contagem. E-mail inexistente gasta o mesmo tempo que um existente.
+- **Trocar a senha derruba as outras sessões** (outro navegador, celular); quem trocou continua
+  logado. Migração `0004` (coluna `usuarios.sessao_versao`).
+- **`/api/docs` e `/api/openapi.json`:** abertos no local; na produção pedem login no painel ou o
+  token (`Authorization: Bearer`), e o integrante do chatbot continua usando com o token dele.
+- **IP real atrás do Caddy:** `FORWARDED_ALLOW_IPS=*` na VPS (com a porta 8000 fechada), para o
+  limite de login enxergar o IP do visitante e não o do proxy.
+
+## Fase 7: o que foi testado com a placa real
+
+BitDogLab (Pico W, MicroPython 1.29) no Wi-Fi 2,4 GHz, falando com o broker do notebook, com o
+programa de [placa_bancada/](placa_bancada/README.md):
+
+| Teste | Resultado |
+|---|---|
+| Wi-Fi + NTP; `ts` em UTC (o RTC da placa fica em hora local) | ok |
+| Telemetria a cada 60 s; pill "Ao vivo" com o sinal Wi-Fi real | ok |
+| Config retida ao conectar e mudança ao vivo (solo → Arenoso, v2) | ok: confirmada 54 s depois |
+| Comando "abrir 1 min" → relé GPIO19 liga e desliga; `cmd_resp` e `irrigacao` | ok |
+| Fechamento do dia na placa (ET₀, Kc, MLP, lâmina) | ok: classe 1 pediu 23,9 mm, a placa irrigou sozinha e o déficit voltou a 2 mm |
+| Broker fora por 3 min: buffer e reenvio (mais recente primeiro, depois o atrasado) | ok: sem buracos, leituras a cada 60 s |
+| Placa muda (sem fechar a conexão): LWT | ok: "Sem contato" em 93 s, com a hora real do último contato |
+| Desligamento limpo (Ctrl+C) | ok: "offline" na hora |
+
+Defeitos que só apareceram na placa e foram corrigidos: JSON cortado no `umqtt.simple` com
+texto acentuado (publicar bytes), primeiro dia fechando ao ligar (tempos medidos antes do NTP) e
+placa travando ~30 s a cada tentativa de reconexão com o broker fora (tempo-limite de 5 s e
+intervalo crescente entre tentativas).
+
+Não testado ainda: sensores reais e o ensaio de 2 h com o hotspot desligado (seção 14.5); o de
+3 min com o broker fora cobre o mesmo caminho do código.
 
 ## Decisões da fase 6 que vale conhecer
 

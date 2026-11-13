@@ -249,7 +249,7 @@ export interface MensagemRejeitada {
 export interface DispositivoDetalhe extends Dispositivo {
   leituras_sem_cultivo: number;
   rejeitadas: MensagemRejeitada[];
-  conexao: { mqtt_host: string; mqtt_porta: number; mqtt_usuario: string };
+  conexao: { mqtt_host: string; mqtt_porta: number; mqtt_tls: boolean; mqtt_usuario: string };
 }
 
 /** Corpo para criar/editar cultivo (POST/PATCH). */

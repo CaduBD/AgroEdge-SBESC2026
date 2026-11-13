@@ -37,6 +37,7 @@ _hasher = PasswordHasher()
 _bearer = HTTPBearer(auto_error=False, description="Token de serviço (CHATBOT_TOKEN)")
 
 CHAVE_SESSAO = "usuario_id"
+CHAVE_VERSAO = "v"  # Usuario.sessao_versao no momento do login
 
 
 # ---------------------------------------------------------------- hashes
@@ -51,6 +52,24 @@ def conferir_senha(senha_hash: str, senha: str) -> bool:
         return _hasher.verify(senha_hash, senha)
     except (VerificationError, InvalidHashError):
         return False
+
+
+_HASH_FALSO = gerar_hash_senha("nenhum-usuario-tem-esta-senha")
+
+
+def conferir_login(usuario: Usuario | None, senha: str) -> bool:
+    """Confere a senha gastando o mesmo tempo quando o e-mail não existe: assim a demora da
+    resposta não revela quais e-mails têm conta."""
+    if usuario is None:
+        conferir_senha(_HASH_FALSO, senha)
+        return False
+    return conferir_senha(usuario.senha_hash, senha)
+
+
+def abrir_sessao(request: Request, usuario: Usuario) -> None:
+    request.session.clear()
+    request.session[CHAVE_SESSAO] = usuario.id
+    request.session[CHAVE_VERSAO] = usuario.sessao_versao
 
 
 def gerar_hash_token(token: str) -> str:
@@ -139,6 +158,10 @@ async def usuario_atual(
     else:
         usuario_id = request.session.get(CHAVE_SESSAO)
         usuario = await sessao.get(Usuario, usuario_id) if usuario_id else None
+        # Sessão aberta antes de uma troca de senha não vale mais. Cookies antigos, sem a
+        # versão, contam como 0 (a versão de quem nunca trocou a senha).
+        if usuario is not None and request.session.get(CHAVE_VERSAO, 0) != usuario.sessao_versao:
+            usuario = None
         if usuario is None:
             request.session.clear()
     if usuario is None:

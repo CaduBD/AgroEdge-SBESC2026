@@ -1,0 +1,86 @@
+# Produção (VPS). O de desenvolvimento (notebook) é o docker-compose.yml.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Só ficam expostos o Caddy (80/443: painel e API com HTTPS) e o broker com TLS (8883).
+# O app (8000) e o broker sem TLS (1883) ficam só na rede interna do Docker. Atenção: o
+# Docker abre as portas publicadas por fora do firewall (ufw), então nada além disso pode
+# ter "ports:" aqui. Passo a passo em producao/README.md.
+
+name: agroedge
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMINIO: ${DOMINIO:?defina DOMINIO no .env}
+      MQTT_DOMINIO: ${MQTT_DOMINIO:?defina MQTT_DOMINIO no .env}
+    volumes:
+      - ./producao/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "8883:8883"
+    environment:
+      MQTT_DOMINIO: ${MQTT_DOMINIO:?defina MQTT_DOMINIO no .env}
+    entrypoint: ["sh", "/producao/mosquitto-entrada.sh"]
+    volumes:
+      - ./mosquitto:/mosquitto/config # passwd e acl (o mosquitto.conf daqui é o do notebook)
+      - ./producao:/producao:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_certs:/mosquitto/certs
+      - caddy_data:/caddy:ro # certificado de mqtt.<domínio>
+
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Fixados aqui para não depender de lembrar no .env
+      AMBIENTE: producao
+      DATABASE_URL: sqlite+aiosqlite:////data/agroedge.db
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+      MQTT_TLS: "false" # dentro da rede do Docker; o TLS é na 8883, para as placas
+      FORWARDED_ALLOW_IPS: "*" # a porta 8000 não é publicada: só o Caddy chega aqui
+      BROKER_HOST_PUBLICO: ${MQTT_DOMINIO:?defina MQTT_DOMINIO no .env}
+      BROKER_PORTA_PUBLICA: "8883"
+      BROKER_TLS_PUBLICO: "true"
+    expose:
+      - "8000"
+    volumes:
+      - app_data:/data
+    depends_on:
+      - mosquitto
+
+  backup:
+    image: alpine:3
+    restart: unless-stopped
+    entrypoint: ["sh", "/producao/backup.sh"]
+    environment:
+      BACKUP_HORA_UTC: "06"
+      BACKUP_DIAS: "14"
+    volumes:
+      - app_data:/data
+      - ./backups:/backups
+      - ./producao:/producao:ro
+
+volumes:
+  caddy_data:
+  caddy_config:
+  mosquitto_data:
+  mosquitto_certs:
+  app_data:

@@ -135,6 +135,26 @@ async def publicar_instalacao(
     return True
 
 
+async def reconfigurar_dispositivo(
+    sessao: AsyncSession, publicador: Publicador, dispositivo: Dispositivo
+) -> Instalacao | None:
+    """Mudou algo da placa que vai na config (o intervalo): nova versão para a instalação ativa."""
+    instalacao = (
+        await sessao.execute(
+            select(Instalacao).where(
+                col(Instalacao.dispositivo_id) == dispositivo.id, col(Instalacao.fim).is_(None)
+            )
+        )
+    ).scalar_one_or_none()
+    if instalacao is None:
+        return None
+    cultivo = await sessao.get(Cultivo, instalacao.cultivo_id)
+    assert cultivo is not None
+    instalacao.cfg_v += 1
+    await publicar_instalacao(sessao, publicador, instalacao, cultivo)
+    return instalacao
+
+
 async def reconfigurar(
     sessao: AsyncSession, publicador: Publicador, cultivo: Cultivo
 ) -> Instalacao | None:

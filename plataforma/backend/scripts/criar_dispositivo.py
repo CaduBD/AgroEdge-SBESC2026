@@ -63,7 +63,9 @@ def no_notebook(serial: str, senha: str | None) -> None:
     env = _ler_env()
     print("\nCopie para o config_local.py da placa:\n")
     print(f'MQTT_HOST = "{env.get("BROKER_HOST_PUBLICO", "172.20.10.10")}"')
-    print("MQTT_PORTA = 1883")
+    print(f"MQTT_PORTA = {env.get('BROKER_PORTA_PUBLICA') or 1883}")
+    tls = env.get("BROKER_TLS_PUBLICO", "").lower() in ("1", "true", "sim")
+    print(f"MQTT_TLS = {tls}")
     print(f'MQTT_USUARIO = "{serial}"')
     print(f'MQTT_SENHA = "{senha}"')
 

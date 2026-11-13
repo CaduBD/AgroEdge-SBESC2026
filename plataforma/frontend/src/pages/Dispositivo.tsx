@@ -20,6 +20,7 @@ import { toast } from "sonner";
 
 import { useComandos, useDispositivo, useDispositivos, useInstalacoes } from "@/api/consultas";
 import type { Comando, Instalacao } from "@/api/tipos";
+import { CardConfigPlaca } from "@/components/dispositivo/CardConfigPlaca";
 import { DialogoInstalar } from "@/components/dispositivo/DialogoInstalar";
 import { EstadoVazio } from "@/components/EstadoVazio";
 import { type MetaColuna, TabelaPaginada } from "@/components/historico/TabelaPaginada";
@@ -196,6 +197,7 @@ export function Dispositivo() {
   const configLocal = [
     `MQTT_HOST = "${d.conexao.mqtt_host}"`,
     `MQTT_PORTA = ${d.conexao.mqtt_porta}`,
+    `MQTT_TLS = ${d.conexao.mqtt_tls ? "True" : "False"}`,
     `MQTT_USUARIO = "${d.conexao.mqtt_usuario}"`,
     `MQTT_SENHA = "…"  # gerada no cadastro da placa`,
   ].join("\n");
@@ -295,6 +297,8 @@ export function Dispositivo() {
           <DialogoInstalar serial={d.serial} cultivoAtual={inst?.cultivo_id ?? null} />
         </CardHeader>
       </Card>
+
+      <CardConfigPlaca dispositivo={d} />
 
       {/* Comandos e histórico */}
       <div className="grid gap-3">

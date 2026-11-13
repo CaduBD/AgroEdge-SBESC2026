@@ -207,6 +207,17 @@ class CultivoSaida(Saida):
 # ---------------------------------------------------------------- dispositivos
 
 
+class DispositivoEdicao(BaseModel):
+    apelido: str | None = Field(default=None, max_length=60, examples=["Placa da bancada"])
+    intervalo_telemetria_min: int | None = Field(
+        default=None,
+        ge=1,
+        le=60,
+        description="Minutos entre leituras. Com a placa instalada, vai na config (nova versão).",
+        examples=[15],
+    )
+
+
 class InstalarEntrada(BaseModel):
     cultivo_id: int
     inicio: datetime | None = Field(
@@ -258,6 +269,7 @@ class ConexaoPlaca(BaseModel):
 
     mqtt_host: str
     mqtt_porta: int
+    mqtt_tls: bool = False
     mqtt_usuario: str
 
 

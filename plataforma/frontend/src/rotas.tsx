@@ -3,17 +3,26 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Protegido } from "@/components/layout/Protegido";
 import { RedirecionarCultivo } from "@/components/layout/RedirecionarCultivo";
-import { Conta } from "@/pages/Conta";
-import { Dispositivo } from "@/pages/Dispositivo";
-import { CultivoEditar } from "@/pages/CultivoEditar";
-import { Cultivos } from "@/pages/Cultivos";
-import { Historico } from "@/pages/Historico";
 import { Inicio } from "@/pages/Inicio";
-import { Login } from "@/pages/Login";
 import { NaoEncontrada } from "@/pages/NaoEncontrada";
 
+// Telas carregadas só quando abertas (cada uma vira um arquivo separado no build). O Início
+// fica no arquivo principal: é a tela que o produtor mais abre, e no celular.
+const carregarHistorico = async () => ({
+  Component: (await import("@/pages/Historico")).Historico,
+});
+const carregarCultivos = async () => ({ Component: (await import("@/pages/Cultivos")).Cultivos });
+const carregarCultivoEditar = async () => ({
+  Component: (await import("@/pages/CultivoEditar")).CultivoEditar,
+});
+const carregarDispositivo = async () => ({
+  Component: (await import("@/pages/Dispositivo")).Dispositivo,
+});
+const carregarConta = async () => ({ Component: (await import("@/pages/Conta")).Conta });
+const carregarLogin = async () => ({ Component: (await import("@/pages/Login")).Login });
+
 export const roteador = createBrowserRouter([
-  { path: "/login", element: <Login /> },
+  { path: "/login", lazy: carregarLogin },
   {
     element: <Protegido />,
     children: [
@@ -23,15 +32,12 @@ export const roteador = createBrowserRouter([
           { index: true, element: <RedirecionarCultivo pagina="inicio" /> },
           { path: "historico", element: <RedirecionarCultivo pagina="historico" /> },
           { path: "cultivos/:cultivoId/inicio", element: <Inicio /> },
-          {
-            path: "cultivos/:cultivoId/historico",
-            element: <Historico />,
-          },
-          { path: "cultivos", element: <Cultivos /> },
-          { path: "cultivos/novo", element: <CultivoEditar /> },
-          { path: "cultivos/:cultivoId/editar", element: <CultivoEditar key="editar" /> },
-          { path: "dispositivo", element: <Dispositivo /> },
-          { path: "conta", element: <Conta /> },
+          { path: "cultivos/:cultivoId/historico", lazy: carregarHistorico },
+          { path: "cultivos", lazy: carregarCultivos },
+          { path: "cultivos/novo", lazy: carregarCultivoEditar },
+          { path: "cultivos/:cultivoId/editar", lazy: carregarCultivoEditar },
+          { path: "dispositivo", lazy: carregarDispositivo },
+          { path: "conta", lazy: carregarConta },
           { path: "inicio", element: <Navigate to="/" replace /> },
           { path: "*", element: <NaoEncontrada /> },
         ],

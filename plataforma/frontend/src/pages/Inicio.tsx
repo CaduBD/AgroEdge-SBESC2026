@@ -1,4 +1,5 @@
 import { AlertCircle, RefreshCw } from "lucide-react";
+import { lazy, Suspense } from "react";
 import { useParams } from "react-router-dom";
 
 import { ErroApi, mensagemDeErro } from "@/api/cliente";
@@ -12,11 +13,16 @@ import {
   CardSolo,
 } from "@/components/inicio/Cards";
 import { CardValvula } from "@/components/inicio/CardValvula";
-import { GraficoSemana } from "@/components/inicio/GraficoSemana";
 import { EstadoVazio } from "@/components/EstadoVazio";
 import { NaoEncontrada } from "@/pages/NaoEncontrada";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// O gráfico (Recharts) é a parte mais pesada da tela: carrega depois dos cards, que já mostram
+// a lâmina e o estado hídrico.
+const GraficoSemana = lazy(async () => ({
+  default: (await import("@/components/inicio/GraficoSemana")).GraficoSemana,
+}));
 
 function Carregando() {
   return (
@@ -87,7 +93,9 @@ export function Inicio() {
         </div>
 
         <div className="lg:col-span-12">
-          <GraficoSemana dias={r.ultimos_7_dias} />
+          <Suspense fallback={<Skeleton className="h-80 rounded-xl" />}>
+            <GraficoSemana dias={r.ultimos_7_dias} />
+          </Suspense>
         </div>
       </div>
     </div>

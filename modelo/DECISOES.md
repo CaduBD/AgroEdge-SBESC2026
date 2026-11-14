@@ -323,3 +323,53 @@ A rede v3 recebe essas duas informações como 8 entradas (one-hot), além das 3
 3. Sem informação de irrigação: não mostrar a classe; mostrar "registre a irrigação" e só a ET0/ETc.
 4. Instalar no início do ciclo ou logo após uma irrigação forte (seção 14).
 
+---
+
+## 16. Manga Palmer: a primeira cultura com o ano todo (14/11/2026)
+
+**Fonte:** Silva Junior (2022), dissertação PPGEA/UNIVASF, orientada por Magna Moura (Embrapa Semiárido): pomar de Palmer em Petrolina (4 × 7 m, microaspersão), dois ciclos completos (jul/2019–jun/2020 e jul/2020–mai/2021), consumo medido pela razão de Bowen. A notícia da Revista da Fruta enviada pela equipe é fonte secundária da mesma pesquisa.
+
+**Tabela 10 da dissertação (Kc por fase) e média adotada:**
+
+| Fase | Ciclo I | Ciclo II | Média (adotada) | Duração média (Tabela 2) |
+|---|---|---|---|---|
+| Crescimento vegetativo | 0,82 | 0,80 | 0,81 | 59 d |
+| Repouso vegetativo e maturação dos ramos | 0,72 | 0,80 | 0,76 | 80 d |
+| Indução floral | 0,78 | 0,91 | 0,85 | 26 d (40 e 11) |
+| Floração | 0,91 | 0,89 | 0,90 | 17 d |
+| Desenvolvimento de frutos | 1,00 | 0,90 | 0,95 | 102 d |
+| Maturação de frutos | 1,00 | 0,82 | 0,91 | 47 d |
+
+- **Validação:** a Tabela 10 e a Tabela 2 foram conferidas no PDF completo da dissertação (pp. 46 e 78). As médias dos dois ciclos são exatamente os "valores médios recomendados" da notícia (0,81; 0,76; 0,85; 0,90; 0,95) e o Kc da maturação do resumo (0,91). A ET0 do estudo é Penman-Monteith FAO-56 com a estação da Embrapa Semiárido a 500 m do pomar (seção 4.5): o mesmo método do nosso `eto.py`, então o Kc pode ser usado direto com a ET0 da placa.
+- **Definição das fases** (Tabela 1 da dissertação): o crescimento vegetativo começa na poda; o repouso vegetativo e a maturação dos ramos vão do regulador vegetal até a quebra de dormência; a indução floral vai da quebra de dormência à abertura completa das panículas. O produtor reconhece essas fases no pomar, o que facilita informar a data de cada uma.
+- **Observação:** o Kc da tabela não é a razão entre a ETc média e a ET0 média (ex.: 3,85/4,19 = 0,92, contra 0,82 na tabela); o autor provavelmente calculou a média dos Kc diários. Usamos o Kc publicado.
+- **Na biblioteca:** `manga_palmer`, contando os dias a partir da poda, ciclo de 331 dias (média). Faltam o repouso de ~14 dias entre a colheita e a poda (sem Kc) e o p e a raiz próprios da Palmer (usados os da Tommy Atkins).
+- **Manejo:** a biblioteca ganhou o campo `manejo`. Na indução floral, o `main.py` avisa que o produtor reduz a irrigação de propósito (na fonte, até 2 h/dia contra até 8 h nas outras fases) e que a lâmina calculada não deve ser seguida sem orientação técnica. Se a lâmina deve ser zerada ou reduzida nessa fase é uma decisão pendente (ver `versoes/README.md`).
+- **Tommy Atkins no ano todo:** Teixeira et al. (2008) mediram duas safras completas, mas publicam o Kc por períodos de 30 dias e a média do ano (0,85–0,97), não por fase; a dissertação (p. 37) atribui a esse mesmo artigo (citado como 2008b) Kc por fase (repouso 0,7; vegetativo 0,8; maturação dos ramos 1,0; indução e início da floração 1,0; fim da floração ao crescimento do fruto 0,9; maturação 0,8; colheita 0,6), que no artigo aparecem só em gráfico ou por período de 30 dias. Média de confiança: usar só se precisarmos da Tommy Atkins no ano todo, e sem misturar com Silva (2000).
+
+---
+
+## 17. v3.1: a v3 retreinada com a manga Palmer (14/11/2026)
+
+**Por quê:** a v3 nunca viu a Palmer, nem ciclos de ano todo (as culturas sintéticas iam de 90 a 200 dias).
+
+**Como (`14_v3_1_palmer.py`):** igual à v3, com a Palmer entre as culturas reais (uva, Tommy Atkins e Palmer, 10% cada; 70% sintéticas) e ciclos sintéticos de 90 a 365 dias. Rede escolhida pela validação: 45-32-3, 1.571 parâmetros (6,6 KB).
+
+**Teste geral (2009, `resultados_v3_1.md`):** rede 76,8% × balanço 71,0%. O teste de 2009 quase não tem Palmer (só 4 ciclos cabem antes do fim do clima, em 31/12/2009), então a Palmer foi avaliada à parte.
+
+**Avaliação na Palmer (`15_avaliar_palmer.py`, 150 ciclos de jun/2007 a dez/2009, 37.779 dias):**
+
+| Recorte | Balanço | Rede v3.1 |
+|---|---|---|
+| Geral | 73,4% (crítico 95%) | 79,5% (crítico 90%) |
+| Sensor de vazão | 86,6% | 88,8% |
+| Produtor informa a quantidade | 82,6% | 85,0% |
+| Produtor informa o tempo de válvula | 83,8% | 85,3% |
+| Registro de vez em quando | 71,5% | 75,3% |
+| Sem informação | 36,8% | 60,2% (crítico 70%) |
+| Com informação de irrigação e placa no início ou após irrigação | 85,2% | 87,8% |
+
+- Com informação de irrigação, a rede acerta entre 85% e 89% na Palmer em todas as fases do ano (do crescimento vegetativo à maturação), e ganha do balanço até com sensor de vazão (na v3 ela perdia nesse caso).
+- **Ressalva:** 2007 e 2008 foram usados na validação (escolha do tamanho da rede e parada do treino), então o número pode estar um pouco otimista. Não há Palmer suficiente só em 2009 para um teste limpo.
+- Sem informação de irrigação continua não servindo (60%, só 70% dos críticos detectados).
+

@@ -8,11 +8,13 @@ import culturas
 # ---------------------------------------------------------------- cultura e ciclo
 # cultura plantada: um dos nomes de culturas.CULTURAS
 #   "uva_italia"          uva de mesa cv. Itália (dias contados a partir da poda)
-#   "manga_tommy_atkins"  manga cv. Tommy Atkins (dias contados a partir da floração)
+#   "manga_tommy_atkins"  manga cv. Tommy Atkins, da floração à maturação (dias contados
+#                         a partir da floração)
+#   "manga_palmer"        manga cv. Palmer, ano todo (dias contados a partir da poda)
 CULTURA = "uva_italia"
 
 # data do evento que inicia o ciclo da cultura escolhida: a PODA para a uva, o INÍCIO DA
-# FLORAÇÃO para a manga (ver "referencia" em culturas.py). Atualize a cada novo ciclo.
+# FLORAÇÃO para a manga Tommy Atkins, a PODA para a manga Palmer (ver "referencia" em culturas.py). Atualize a cada novo ciclo.
 # FORMATO DAS DATAS neste arquivo: (ano, mês, dia), com parênteses e vírgulas, nessa ordem
 # (ao contrário do dd/mm/aaaa), números sem zero à esquerda e sem aspas.
 #   15 de janeiro de 2026  ->  (2026, 1, 15)

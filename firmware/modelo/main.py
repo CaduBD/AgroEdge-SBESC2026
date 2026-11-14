@@ -103,6 +103,9 @@ def processar_dia(hist, data, ar, rs, u2, chuva, irrigacao, cobertura):
     import culturas
     dap = cfg.dap(data)
     kc, fase, no_ciclo = culturas.kc_do_dia(cfg.CULTURA, dap)
+    manejo = culturas.cultura(cfg.CULTURA).get("manejo", {})
+    if fase in manejo:
+        avisos.append(manejo[fase])
     if not no_ciclo:
         avisos.append("dia %d do ciclo fora dos dados de Kc da cultura (0-%d): usado o Kc da fase "
                       "mais próxima" % (dap, culturas.cultura(cfg.CULTURA)["ciclo_dias"]))

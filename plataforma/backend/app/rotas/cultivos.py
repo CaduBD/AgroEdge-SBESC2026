@@ -79,7 +79,8 @@ async def editar(
 async def nova_poda(
     entrada: PodaEntrada, cultivo: CultivoDoUsuario, sessao: Sessao, publicador: PublicadorDep
 ) -> CultivoSaida:
-    """Registra nova poda (uva) ou floração (manga): nova data de referência e nova config."""
+    """Registra o início de um novo ciclo (poda ou floração, conforme a cultura): nova data de
+    referência e nova config."""
     cultivo.data_referencia = entrada.data
     cultivo.atualizado_em = agora_utc()
     await reconfigurar(sessao, publicador, cultivo)

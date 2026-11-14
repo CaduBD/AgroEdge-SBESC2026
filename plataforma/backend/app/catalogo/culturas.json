@@ -21,5 +21,21 @@
       {"chave": "formacao_frutos", "nome": "Formação dos frutos", "dias": 51, "kc": 0.83},
       {"chave": "maturacao", "nome": "Maturação", "dias": 39, "kc": 0.84}
     ]
+  },
+  {
+    "chave": "manga_palmer",
+    "nome": "Manga cv. Palmer (ano todo)",
+    "referencia": "poda",
+    "ciclo_dias": 331,
+    "p": 0.5,
+    "raiz_m": 0.6,
+    "fases": [
+      {"chave": "crescimento_vegetativo", "nome": "Crescimento vegetativo", "dias": 59, "kc": 0.81},
+      {"chave": "repouso_vegetativo_maturacao_ramos", "nome": "Repouso vegetativo e maturação dos ramos", "dias": 80, "kc": 0.76},
+      {"chave": "inducao_floral", "nome": "Indução floral", "dias": 26, "kc": 0.85},
+      {"chave": "floracao", "nome": "Floração", "dias": 17, "kc": 0.9},
+      {"chave": "desenvolvimento_frutos", "nome": "Desenvolvimento dos frutos", "dias": 102, "kc": 0.95},
+      {"chave": "maturacao_frutos", "nome": "Maturação dos frutos", "dias": 47, "kc": 0.91}
+    ]
   }
 ]

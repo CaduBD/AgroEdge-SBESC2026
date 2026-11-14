@@ -424,15 +424,15 @@ class Bancada:
         p_local = getattr(cfg, "P_LOCAL", None)
         cfg.P_DEPLECAO = p_local if p_local is not None else cfg._c["p"]
         # lamina e historico leem o cfg nos valores padrão das funções: reimportar
-        for nome in ("lamina", "historico", "estacao"):
+        for nome in ("lamina", "historico", "historico_v3", "estacao"):
             if nome in sys.modules:
                 del sys.modules[nome]
         if nova:
             gravar_json(ARQ_CONFIG, c)
             if trocou_local:
-                import historico
+                import estacao
 
-                h = historico.Historico()
+                h = estacao.novo_historico()  # v1 ou v3.1, conforme config_local.MODELO
                 h.zerar()  # outro local: o classificador começa do zero
                 h.salvar()
                 log("nova instalação %s: histórico zerado" % c.get("instalacao_id"))
@@ -563,14 +563,13 @@ class Bancada:
 
     def fechar_dia(self):
         import estacao
-        import historico
 
         if not self.config:
             log("sem config da plataforma: dia não fechado (instale a placa num cultivo)")
             self.proximo_dia()
             return
         ar, rs, u2, chuva = totais_do_dia(self.dia_semente())
-        hist = historico.Historico()
+        hist = estacao.novo_historico()  # v1 ou v3.1, conforme config_local.MODELO
         r = estacao.processar_dia(
             hist, self.data_virtual, ar, rs, u2, chuva, self.irrigado_dia_mm, 1.0
         )

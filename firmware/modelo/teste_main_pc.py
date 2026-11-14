@@ -72,3 +72,32 @@ assert lamina.litros_total(5.0, n_plantas=None) is None
 print("OK: litros por planta e na área (manga 8 x 5 m, ETc 4,98 mm, 250 plantas: %.0f L)"
       % lamina.litros_total(4.98, area_m2=40, n_plantas=250))
 
+
+# classificador v3.1 (MODELO = "v3_1"): manga Palmer, 200 dias de 2009 a partir da poda
+cfg.MODELO = "v3_1"
+cfg.CULTURA = "manga_palmer"
+cfg.DATA_REFERENCIA = (2009, 1, 1)
+cfg.FONTE_IRRIGACAO, cfg.INICIO_USO = "tempo", "ciclo"
+h3 = main.novo_historico(None)
+assert h3.VERSAO == "v3_1"
+contagem3, fases_vistas = [0, 0, 0], set()
+with open(CSV) as f:
+    for r in csv.DictReader(f):
+        a, m, d = (int(x) for x in r["data"].split("-"))
+        if (a, m, d) < cfg.DATA_REFERENCIA or cfg.dap((a, m, d)) > 199:
+            continue
+        ar = {"tmax": float(r["Tmax"]), "tmin": float(r["Tmin"]), "ur_media": float(r["Umidade_Relativa"]),
+              "ur_max": None, "ur_min": None, "n": 1440}
+        res = main.processar_dia(h3, (a, m, d), ar, float(r["Radiacao_Solar"]),
+                                 float(r["Velocidade_Vento"]), float(r["Precipitacao"]), 0.0, 1.0)
+        assert res["modelo"] == "v3_1" and res["classe"] is not None, res
+        contagem3[res["classe"]] += 1
+        fases_vistas.add(res["fase"])
+assert {"crescimento_vegetativo", "inducao_floral", "desenvolvimento_frutos"} <= fases_vistas
+print("OK: v3.1 na Palmer, 200 dias sem irrigar, classes:",
+      dict(zip(("adequado", "moderado", "crítico"), contagem3)), "fases:", len(fases_vistas))
+cfg.FONTE_IRRIGACAO = "nenhuma"
+res = main.processar_dia(main.novo_historico(None), (2009, 3, 1), ar, 20.0, 2.0, 0, 0, 1.0)
+assert res["classe"] is None and res["lamina_bruta"] is None and res["etc"] is not None
+assert any("sem informação de irrigação" in a for a in res["avisos"])
+print("OK: v3.1 sem informação de irrigação não mostra classe nem lâmina (ETc %.2f mm)" % res["etc"])

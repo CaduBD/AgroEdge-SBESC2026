@@ -14,7 +14,7 @@ Rodar em ordem (Python 3, `pip install pandas scikit-learn tabulate tensorflow`)
 4. `python3 04_conferir_firmware.py` passa os dias de 2009 pelo caminho do firmware (`historico.py` → `classificador.py` → `lamina.py`), confere as entradas e simula a placa irrigando sozinha.
 5. `python3 05_validar_eto.py` confere o ET0 do firmware (`eto.py`) contra o DataClimaBR (RMSE 0,07 mm/dia, R² 0,999).
 
-Scripts 06 a 13 (versões v2 e v3 e experimentos de campo): ver a tabela em [`versoes/README.md`](versoes/README.md#9-como-reproduzir).
+Scripts 06 a 16 (versões v2, v3 e v3.1, experimentos de campo e conferência do firmware da v3.1): ver a tabela em [`versoes/README.md`](versoes/README.md#9-como-reproduzir).
 
 ## Firmware (MicroPython)
 Em `../firmware/modelo/`, copie para a placa:

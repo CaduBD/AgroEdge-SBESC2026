@@ -102,6 +102,27 @@ WIFI_SENHA = ""
 LATITUDE = -9.39       # graus, sul negativo
 ALTITUDE_M = 370
 
+# ---------------------------------------------------------------- classificador
+# qual versão do classificador a placa usa (ver modelo/versoes/README.md):
+#   "v3_1" = várias culturas, inclusive a manga Palmer no ano todo; usa FONTE_IRRIGACAO e
+#            INICIO_USO abaixo (arquivos historico_v3.py e agroedge_pesos_v3_1.py)
+#   "v1"   = só uva Itália, dados completos (arquivos historico.py e agroedge_pesos.py)
+MODELO = "v3_1"
+
+# de onde vem a irrigação que a placa conhece (entrada da v3.1; a plataforma manda pelo painel):
+#   "sensor"  = sensor de vazão/hidrômetro      "manual" = produtor informa a quantidade
+#   "tempo"   = produtor informa o tempo de válvula (a placa converte pela VAZAO_L_H)
+#   "parcial" = registro de vez em quando        "nenhuma" = ninguém informa
+# Com "nenhuma" a placa NÃO mostra a classe (nenhum método acerta sem saber da irrigação).
+FONTE_IRRIGACAO = "tempo"
+
+# como a placa foi instalada neste ciclo (entrada da v3.1):
+#   "ciclo"    = ligada no dia da poda/floração (DATA_REFERENCIA)
+#   "apos_irr" = ligada no meio do ciclo, logo depois de uma irrigação ou chuva que encheu o solo
+#   "meio"     = ligada no meio do ciclo, num dia qualquer
+# Quando o ciclo recomeça (nova DATA_REFERENCIA), a placa passa a contar como "ciclo" sozinha.
+INICIO_USO = "meio"
+
 # irrigação aplicada: "arquivo" = soma o que for registrado com main.registrar_irrigacao(mm);
 # "zero" = considera que não houve irrigação
 IRRIGACAO_MODO = "arquivo"

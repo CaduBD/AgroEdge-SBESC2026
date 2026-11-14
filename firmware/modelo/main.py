@@ -12,8 +12,14 @@
 #   display OLED .............. I²C1 GPIO14/15 (o da própria BitDogLab)
 #
 # Arquivos copiados para a placa: main.py, config_local.py, culturas.py, eto.py, termohigro.py, relogio.py,
-# anemometro.py, pluviometro.py, piranometro.py, historico.py, lamina.py, classificador.py,
-# agroedge_pesos.py e ssd1306.py.
+# anemometro.py, pluviometro.py, piranometro.py, lamina.py, classificador.py, ssd1306.py e os
+# arquivos do classificador escolhido em config_local.MODELO:
+#   "v3_1" (padrão): historico_v3.py e agroedge_pesos_v3_1.py
+#   "v1": historico.py e agroedge_pesos.py
+#
+# Classificador v3.1: recebe a situação do local (FONTE_IRRIGACAO, INICIO_USO). Com
+# FONTE_IRRIGACAO = "nenhuma" a placa não mostra a classe nem a lâmina (sem saber da irrigação,
+# nenhum método acerta; ver modelo/DECISOES.md, seções 14 e 15) e pede o registro da irrigação.
 #
 # Irrigação aplicada: o sistema não mede a água que o produtor aplicou. Registre pelo Thonny
 # (Ctrl+C para parar, depois):  import main; main.registrar_irrigacao(12.5)   # mm líquidos
@@ -76,9 +82,19 @@ def calcular_et0(data, ar, rs, u2):
     return {"et0": valor, "rs": rs, "u2": u2}, avisos
 
 
+def novo_historico(arquivo=True):
+    """Histórico do classificador escolhido em config_local.MODELO (arquivo=None: só memória)."""
+    if _c("MODELO", "v1") == "v3_1":
+        import historico_v3
+        return historico_v3.HistoricoV3() if arquivo is True else historico_v3.HistoricoV3(arquivo)
+    import historico
+    return historico.Historico() if arquivo is True else historico.Historico(arquivo)
+
+
 def processar_dia(hist, data, ar, rs, u2, chuva, irrigacao, cobertura):
     """Fecha o dia: devolve um dict com tudo o que vai para o display e o diário.
-    hist = historico.Historico(). Só atualiza o histórico se o dia tiver dados suficientes."""
+    hist = novo_historico() (v1: historico.Historico; v3.1: historico_v3.HistoricoV3).
+    Só atualiza o histórico se o dia tiver dados suficientes."""
     import classificador
     import lamina
     r = {"data": "%04d-%02d-%02d" % data, "chuva": chuva, "irrigacao": irrigacao,
@@ -109,20 +125,36 @@ def processar_dia(hist, data, ar, rs, u2, chuva, irrigacao, cobertura):
     if not no_ciclo:
         avisos.append("dia %d do ciclo fora dos dados de Kc da cultura (0-%d): usado o Kc da fase "
                       "mais próxima" % (dap, culturas.cultura(cfg.CULTURA)["ciclo_dias"]))
-    x, deficit = hist.fechar_dia(cfg.taw(), dap, et["et0"], chuva, irrigacao, ar["tmax"],
-                                 ar["tmin"], ar["ur_media"], et["u2"], et["rs"])
-    classe, _ = classificador.classificar(x)
+    if getattr(hist, "VERSAO", "v1") == "v3_1":
+        import agroedge_pesos_v3_1
+        x, deficit = hist.fechar_dia(dap, et["et0"], chuva, irrigacao, ar["tmax"], ar["tmin"],
+                                     ar["ur_media"], et["u2"], et["rs"])
+        r.update(modelo="v3_1", cultura=cfg.CULTURA, dap=dap, fase=fase, kc=kc,
+                 etc=kc * et["et0"], deficit=deficit)
+        if _c("FONTE_IRRIGACAO", "tempo") == "nenhuma":
+            avisos.append("sem informação de irrigação: classe e lâmina não calculadas; registre "
+                          "a irrigação (painel ou main.registrar_irrigacao) e ajuste "
+                          "FONTE_IRRIGACAO")
+            r["avisos"] = avisos
+            return r
+        classe, _ = classificador.classificar(x, agroedge_pesos_v3_1)
+    else:
+        x, deficit = hist.fechar_dia(cfg.taw(), dap, et["et0"], chuva, irrigacao, ar["tmax"],
+                                     ar["tmin"], ar["ur_media"], et["u2"], et["rs"])
+        classe, _ = classificador.classificar(x)
+        r.update(modelo="v1")
+        if len(hist.etc) < 28:
+            avisos.append("histórico com %d dias (< 28): classe pouco confiável" % len(hist.etc))
+        if cfg.CULTURA != "uva_italia":
+            avisos.append("classificador v1 treinado só com uva: classe pouco confiável nesta "
+                          "cultura (use MODELO = \"v3_1\")")
+        elif not 0 <= dap <= 108:
+            avisos.append("DAP %d fora do treino (0-108): classe pouco confiável" % dap)
     _, bruta = lamina.recomendar(classe, deficit)
     r.update(cultura=cfg.CULTURA, dap=dap, fase=fase, kc=kc, etc=kc * et["et0"], classe=classe,
              nome_classe=classificador.CLASSES[classe], deficit=deficit, lamina_bruta=bruta,
              minutos=lamina.tempo_min(bruta), aplicar_l_planta=lamina.litros_planta(bruta),
              aplicar_l_total=lamina.litros_total(bruta))
-    if len(hist.etc) < 28:
-        avisos.append("histórico com %d dias (< 28): classe pouco confiável" % len(hist.etc))
-    if cfg.CULTURA != "uva_italia":
-        avisos.append("classificador treinado só com uva: classe pouco confiável nesta cultura")
-    elif not 0 <= dap <= 108:
-        avisos.append("DAP %d fora do treino (0-108): classe pouco confiável" % dap)
     r["avisos"] = avisos
     return r
 
@@ -136,7 +168,7 @@ def proximo_dia(a, m, d):
 
 
 def linha_diario(r):
-    campos = ("data", "cultura", "dap", "fase", "kc", "cobertura", "tmax", "tmin", "ur", "u2",
+    campos = ("data", "modelo", "cultura", "dap", "fase", "kc", "cobertura", "tmax", "tmin", "ur", "u2",
               "rs", "chuva", "irrigacao", "et0", "etc", "consumo_l_planta", "consumo_l_total",
               "deficit", "classe", "lamina_bruta", "aplicar_l_planta", "aplicar_l_total", "minutos")
 
@@ -217,7 +249,6 @@ class Estacao:
         import anemometro
         import pluviometro
         import piranometro
-        import historico
         self.relogio = relogio
         self.fonte_hora = relogio.iniciar()
         print("relógio:", self.fonte_hora or ("interno" if relogio.valido() else "NÃO ACERTADO"),
@@ -227,7 +258,7 @@ class Estacao:
         self.vento = _abrir("anemômetro", anemometro.Anemometro)
         self.chuva = _abrir("pluviômetro", pluviometro.Pluviometro)
         self.sol = _abrir("piranômetro", piranometro.criar_padrao)
-        self.hist = historico.Historico()
+        self.hist = novo_historico()
         self.estado = {"dia": None, "segundos": 0.0, "energia_j": 0.0, "n_sol": 0, "seg_sol": 0.0}
         try:
             with open(ARQ_ESTADO) as f:

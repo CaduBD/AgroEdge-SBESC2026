@@ -30,7 +30,7 @@ a placa no início do ciclo**: nessas condições, volta a ficar perto ou acima 
 | Entradas | 39 | 37 | 45 (as 37 da v2 + 8 de situação) | 45 |
 | Rede | 39-16-3, 691 parâmetros, 3 KB | 37-16-3, 659 parâmetros, 2,9 KB | 45-16-3, 787 parâmetros, 3,5 KB | 45-32-3, 1.571 parâmetros, 6,6 KB |
 | Scripts | `01` → `03` → `04` | `06` → `07` | `12` → `13` | `14` → `15` |
-| Pronta para a placa? | **sim** | não (falta adaptar o `historico.py`) | não (falta adaptar o `historico.py` e o `config_local`) | não (igual à v3) |
+| Pronta para a placa? | **sim** (`MODELO = "v1"`) | não (falta adaptar o `historico.py`) | não (falta adaptar o `historico.py` e o `config_local`) | **sim** (`MODELO = "v3_1"`, padrão desde 15/11; `historico_v3.py`) |
 | Tag git | `modelo-v1-uva` | — | — | — |
 
 ---
@@ -133,7 +133,8 @@ sensor de vazão. Ressalva: os anos dessa avaliação (2007–2009) incluem os d
 
 ## 7. O que precisamos decidir (checklist)
 
-- [ ] **Qual versão vai para o firmware:** v1, v2, v3 ou v3.1 (proposta: v3 com a regra híbrida da seção 6; a v3.1 é a
+- [ ] **Qual versão fica como padrão no firmware:** hoje é a v3.1 (integrada em 15/11 para o teste na manga Palmer;
+      a v1 continua disponível com `MODELO = "v1"`). Confirmar com a equipe. Opções avaliadas: v1, v2, v3 ou v3.1 (proposta: v3 com a regra híbrida da seção 6; a v3.1 é a
       v3 que também cobre a manga Palmer no ano todo e, nela, dispensa o híbrido).
 - [ ] **Meta de 90%:** redefinir com o Prof. Max por condição de uso (ex.: "> 90% com irrigação medida/informada
       e instalação no início do ciclo"), em vez de um número único.
@@ -182,6 +183,7 @@ Python 3 com `pip install pandas numpy scikit-learn tabulate tensorflow` (na pas
 | `11_inicio_varias_sementes.py` | confere o 09 × 10 em 10 anos e 5 sementes (só balanço) | ~5 min |
 | `12` → `13` | v3: dataset com todas as situações e treino | ~3 min |
 | `14` → `15` | v3.1: v3 + manga Palmer; avaliação em 150 ciclos de Palmer (o 15 só precisa de numpy e pandas) | ~3 min |
+| `16_conferir_firmware_v3_1.py` | confere o firmware da v3.1 (`historico_v3.py` + `classificador.py`) contra o treino | segundos |
 
 Os datasets gerados ficam em `dados/` e não vão para o git (estão no `.gitignore`); rode os scripts para recriá-los.
 Todos usam semente fixa: o resultado se repete.

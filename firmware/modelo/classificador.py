@@ -4,18 +4,23 @@
 #
 # Uso:
 #   import classificador
-#   classe, saidas = classificador.classificar(x)   # x na ordem de FEATURES
+#   classe, saidas = classificador.classificar(x)   # x na ordem de FEATURES (modelo v1)
 #   print(classificador.CLASSES[classe])
+#
+# Outros modelos (ex.: v3.1, várias culturas): passe o módulo de pesos dele. A conta é a mesma.
+#   import agroedge_pesos_v3_1
+#   classe, saidas = classificador.classificar(x, agroedge_pesos_v3_1)
 
-import agroedge_pesos as P
+import agroedge_pesos as _V1
 
-FEATURES = P.FEATURES
-CLASSES = P.CLASSES
+FEATURES = _V1.FEATURES          # entradas do modelo v1
+CLASSES = _V1.CLASSES            # as mesmas 3 classes em todas as versões
 
 
-def classificar(x):
+def classificar(x, pesos=None):
     """Recebe as N_FEATURES entradas do dia (sem normalizar) e devolve
-    (índice da classe, lista com a saída de cada classe)."""
+    (índice da classe, lista com a saída de cada classe). pesos = módulo de pesos (padrão: v1)."""
+    P = pesos or _V1
     if len(x) != P.N_FEATURES:
         raise ValueError("esperava %d features" % P.N_FEATURES)
 

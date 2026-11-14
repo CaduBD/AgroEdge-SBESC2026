@@ -373,3 +373,19 @@ A rede v3 recebe essas duas informações como 8 entradas (one-hot), além das 3
 - **Ressalva:** 2007 e 2008 foram usados na validação (escolha do tamanho da rede e parada do treino), então o número pode estar um pouco otimista. Não há Palmer suficiente só em 2009 para um teste limpo.
 - Sem informação de irrigação continua não servindo (60%, só 70% dos críticos detectados).
 
+---
+
+## 18. v3.1 no firmware (15/11/2026)
+
+**Por quê:** o teste de campo será num pomar de manga Palmer, e a v1 (só uva) marca a classe como pouco confiável em qualquer outra cultura. A v3.1 é a única versão treinada com a Palmer no ano todo.
+
+**Como:**
+- `historico_v3.py`: monta na placa as 45 entradas da v3.1 com as mesmas contas da classe `PlacaGeral` do script 06 (janelas de 3 a 28 dias, somas desde o início do uso, balanço da própria placa, fração do ciclo, p da cultura) e as 8 entradas de situação (`FONTE_IRRIGACAO`, `INICIO_USO` do `config_local`, que a plataforma já envia). Quando começa um ciclo novo (nova data de referência), zera e passa a contar como instalada no início do ciclo.
+- `classificador.py`: a mesma conta, agora com o módulo de pesos como parâmetro (`classificar(x, agroedge_pesos_v3_1)`); sem parâmetro continua a v1, então os scripts 03 e 04 não mudam.
+- `config_local.MODELO = "v3_1"` (padrão) ou `"v1"`. `main.novo_historico()` escolhe o histórico certo; a placa de bancada da plataforma passou a usá-lo.
+- Regra: com `FONTE_IRRIGACAO = "nenhuma"`, a placa não mostra classe nem lâmina (só ET0, ETc e litros consumidos) e pede o registro da irrigação. Nas outras fontes, a classe é a da rede (na Palmer a v3.1 ganhou da conta do balanço em todas as fontes, então o híbrido não foi aplicado).
+
+**Conferência (`16_conferir_firmware_v3_1.py`, 120 cenários, 17.893 dias, todas as culturas e situações):** entradas da placa idênticas às do treino (diferença máxima 0), mesma classe que a rede em numpy em 100% dos dias, acurácia de 87,9% com informação de irrigação (77,0% em todos os dias). A v1 continua conferida pelo script 04 (90,9%).
+
+**Falta:** rodar na BitDogLab (memória para importar os pesos, ~22 KB de texto; se faltar, `mpy-cross`) e medir o tempo de inferência.
+

@@ -46,6 +46,8 @@ DO_FIRMWARE = [
     "classificador.py",
     "agroedge_pesos.py",
     "historico.py",
+    "historico_v3.py",
+    "agroedge_pesos_v3_1.py",
     "lamina.py",
     "relogio.py",
 ]

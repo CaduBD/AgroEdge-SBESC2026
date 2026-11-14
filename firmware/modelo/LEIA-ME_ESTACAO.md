@@ -19,7 +19,10 @@ Livres ainda: GPIO19 e GPIO20.
 
 ## Arquivos para copiar para a placa
 `main.py`, `config_local.py`, `culturas.py`, `eto.py`, `termohigro.py`, `relogio.py`, `anemometro.py`, `pluviometro.py`,
-`piranometro.py`, `historico.py`, `lamina.py`, `classificador.py`, `agroedge_pesos.py`, `ssd1306.py`.
+`piranometro.py`, `lamina.py`, `classificador.py`, `ssd1306.py` e os arquivos do classificador escolhido em
+`config_local.MODELO`:
+- `"v3_1"` (padrão): `historico_v3.py` e `agroedge_pesos_v3_1.py`;
+- `"v1"` (só uva): `historico.py` e `agroedge_pesos.py`.
 Não copie `__pycache__`, `teste_main_pc.py` nem a pasta `bancada`.
 
 ## Antes de ligar no campo (`config_local.py`)
@@ -70,8 +73,11 @@ Para uso normal, volte para `MODO_FECHAMENTO = "meia_noite"`.
 - **Dados faltando:** sem vento, usa 2 m/s; sem radiação, estima pela amplitude térmica (ambos do FAO-56).
   Sem T/UR, o dia não tem ET0.
 - **Anemômetro desligado:** sem pulsos, o vento é lido como 0 m/s, e não como "faltando". Confira o diário.
-- **Classificador:** precisa de 28 dias de histórico e do ciclo desde a poda. Começando no meio do ciclo,
-  as primeiras semanas saem com o aviso "classe pouco confiável". Hoje o modelo é o da uva Itália
-  (DAP 0 a 108). Em outra cultura (ex.: manga), a ETc, o balanço e a lâmina já saem com o Kc certo, mas a classe
-  vem marcada como pouco confiável até o retreino com várias culturas.
+- **Classificador (padrão `MODELO = "v3_1"`):** serve para todas as culturas da biblioteca, inclusive a manga Palmer
+  no ano todo. Precisa de duas informações no `config_local` (ou pelo painel): `FONTE_IRRIGACAO` (sensor, manual,
+  tempo, parcial ou nenhuma) e `INICIO_USO` (ciclo, apos_irr ou meio). Com `FONTE_IRRIGACAO = "nenhuma"` a placa não
+  mostra a classe nem a lâmina e pede o registro da irrigação. Com informação de irrigação, acertou ~88% nos testes
+  simulados (`modelo/16_conferir_firmware_v3_1.py`). O `MODELO = "v1"` (só uva, dados completos) continua disponível.
+- **Memória:** o `agroedge_pesos_v3_1.py` tem 1.661 números (6,6 KB em `array('f')`, ~22 KB de texto). Se a placa
+  der `MemoryError` ao importar, pré-compile com o `mpy-cross` (gera `.mpy`, que ocupa bem menos RAM ao carregar).
 - **Dias com a placa desligada** não são preenchidos: o histórico pula esses dias.

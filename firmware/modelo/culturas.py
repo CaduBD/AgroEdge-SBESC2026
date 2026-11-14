@@ -34,6 +34,10 @@
 # local       Onde e em que sistema os dados foram obtidos (valem melhor em condições parecidas).
 # fonte       Referência bibliográfica de cada número.
 # assumido    Lista do que ainda precisa ser confirmado (vazia = tudo com fonte direta).
+# manejo      (opcional) Avisos de manejo por fase, {nome da fase: texto}. O main.py mostra o
+#             aviso no diário quando o dia cai naquela fase. Ex.: na indução floral da manga o
+#             produtor reduz a irrigação de propósito, e a lâmina calculada não deve ser seguida
+#             sem orientação técnica.
 # ---------------------------------------------------------------------------------------------
 
 CULTURAS = {
@@ -78,7 +82,56 @@ CULTURAS = {
                   "umidade recomendados até 0,6 m (Pinto, Silva e Coelho)."),
         "assumido": ["Kc fora da floração-maturação (pós-colheita, fluxos vegetativos, indução "
                      "floral, repouso): sem dado; usa o Kc da fase mais próxima",
-                     "cv. Palmer não coberta (outras fases e Kc)"],
+                     "Para o ano todo, ver a manga Palmer (abaixo) ou Teixeira et al. (2008)"],
+    },
+
+    "manga_palmer": {
+        "nome": "Manga cv. Palmer (ano todo)",
+        "referencia": "poda",          # poda de produção, logo depois da colheita
+        "ciclo_dias": 331,             # média dos dois ciclos medidos (363 e 295 dias)
+        # Kc = média dos ciclos I e II da Tabela 10; duração = média da Tabela 2
+        "kc": ("fases", (
+            ("crescimento_vegetativo", 59, 0.81),                 # ciclos: 0,82 e 0,80
+            ("repouso_vegetativo_maturacao_ramos", 80, 0.76),     # 0,72 e 0,80
+            ("inducao_floral", 26, 0.85),                         # 0,78 e 0,91
+            ("floracao", 17, 0.90),                               # 0,91 e 0,89
+            ("desenvolvimento_frutos", 102, 0.95),                # 1,00 e 0,90
+            ("maturacao_frutos", 47, 0.91),                       # 1,00 e 0,82
+        )),
+        "p": 0.5,
+        "raiz_m": 0.6,
+        "local": ("Fazenda Andorinhas, Petrolina-PE; plantio em 2002, 4 × 7 m (357 plantas/ha), "
+                  "microaspersão, Neossolo Quartzarênico; ciclos jul/2019-jun/2020 e "
+                  "jul/2020-mai/2021"),
+        # Fases (Tabela 1 da fonte): crescimento vegetativo = da poda aos dois fluxos foliares;
+        # repouso vegetativo e maturação dos ramos = do regulador vegetal à quebra de dormência;
+        # indução floral = da quebra de dormência à abertura completa das panículas;
+        # desenvolvimento de frutos = do pegamento ao fruto maior que uma "bola de bilhar"
+        "fonte": ("Kc e duração das fases: SILVA JUNIOR, F. B. Demanda hídrica e partição da "
+                  "energia na cultura da mangueira 'Palmer' no Vale do São Francisco. Dissertação "
+                  "(Mestrado em Engenharia Agrícola), PPGEA/UNIVASF, Juazeiro, 2022. Orientadora: "
+                  "M. S. B. de Moura (Embrapa Semiárido). Kc pela razão de Bowen (Tabela 10); "
+                  "duração das fases (Tabela 2, p. 46); ET0 Penman-Monteith FAO-56 com a "
+                  "estação da Embrapa Semiárido a 500 m do pomar (seção 4.5), o mesmo método do "
+                  "eto.py. As médias dos dois ciclos são os valores "
+                  "recomendados divulgados pela Embrapa (Revista da Fruta/AgroemCampo, 2024). "
+                  "p: 0,5 (Soares e Costa, 1995, como na Tommy Atkins). Raiz: 0,6 m (Pinto, "
+                  "Silva e Coelho, Embrapa)."),
+        "assumido": ["Duração das fases = média de 2 ciclos; varia com o manejo (a indução "
+                     "durou 40 dias num ciclo e 11 no outro). O ideal é o produtor informar a "
+                     "data de cada fase",
+                     "Repouso de ~14 dias entre a colheita e a poda (só no ciclo II), sem Kc "
+                     "medido: usa o Kc da fase mais próxima",
+                     "p e raiz: valores da Tommy Atkins, não medidos para a Palmer"],
+        "manejo": {
+            # Silva Junior (2022), p. 42: para a quebra de dormência das gemas florais "a
+            # aplicação de água se reduz", até 2 h/dia numa só aplicação, contra turnos de até
+            # 8 h no crescimento vegetativo e na frutificação
+            "inducao_floral": ("indução floral: o produtor reduz a irrigação de propósito "
+                               "para a quebra de dormência (na fonte, até 2 h/dia contra até "
+                               "8 h nas outras fases); não seguir a lâmina calculada sem "
+                               "orientação técnica"),
+        },
     },
 }
 
@@ -144,4 +197,10 @@ if __name__ == "__main__":
         assert c["fonte"] and 0 < c["p"] < 1 and c["raiz_m"] > 0, nome
         if c["kc"][0] == "fases":
             assert sum(f[1] for f in c["kc"][1]) == c["ciclo_dias"], nome
+    p = "manga_palmer"
+    assert kc_do_dia(p, 0)[:2] == (0.81, "crescimento_vegetativo")
+    assert kc_do_dia(p, 59)[:2] == (0.76, "repouso_vegetativo_maturacao_ramos")
+    assert kc_do_dia(p, 139)[:2] == (0.85, "inducao_floral")
+    assert kc_do_dia(p, 165)[:2] == (0.90, "floracao")
+    assert kc_do_dia(p, 330) == (0.91, "maturacao_frutos", True)
     print("OK:", ", ".join(c["nome"] for c in CULTURAS.values()))

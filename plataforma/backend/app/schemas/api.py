@@ -122,7 +122,10 @@ class FazendaSaida(Saida):
 class CultivoEntrada(BaseModel):
     nome: str = Field(min_length=1, max_length=100, examples=["Pomar 2 · Tommy"])
     cultura: str = Field(examples=["manga_tommy_atkins"])
-    data_referencia: date = Field(description="Poda (uva) ou início da floração (manga)")
+    data_referencia: date = Field(
+        description="Data que inicia o ciclo ('referencia' da cultura no catálogo): poda (uva Itália "
+        "e manga Palmer) ou início da floração (manga Tommy Atkins)"
+    )
     textura_solo: TexturaSolo = TexturaSolo.franco_arenoso
     agua_disp: float | None = Field(
         default=None, ge=0.06, le=0.18, description="m³/m³; só vale na textura 'avancado'"

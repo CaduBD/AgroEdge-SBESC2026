@@ -25,8 +25,8 @@ Não copie `__pycache__`, `teste_main_pc.py` nem a pasta `bancada`.
 ## Antes de ligar no campo (`config_local.py`)
 - `LATITUDE` e `ALTITUDE_M` do pomar (o GPS do celular dá os dois).
 - `ANEMO_ALTURA_M`: altura real das conchas.
-- Cultura (`CULTURA`: `uva_italia` ou `manga_tommy_atkins`) e `DATA_REFERENCIA` (data da poda para a uva, do início
-  da floração para a manga). Os dados de cada cultura (Kc, p, raiz e fontes) estão em `culturas.py`.
+- Cultura (`CULTURA`: `uva_italia`, `manga_tommy_atkins` ou `manga_palmer`) e `DATA_REFERENCIA` (data da poda para a
+  uva e a manga Palmer, do início da floração para a manga Tommy Atkins). Os dados de cada cultura (Kc, p, raiz e fontes) estão em `culturas.py`.
 - Solo (`AGUA_DISP`), `EFICIENCIA`, `AREA_M2`, `VAZAO_L_H`. `RAIZ_M` e `P_LOCAL` só se houver medida no pomar.
 - Hora: com DS3231, acerte uma vez pelo Thonny: `import relogio; relogio.acertar(2026, 11, 11, 14, 30)`.
   Com Wi-Fi, preencha `WIFI_SSID`/`WIFI_SENHA` (acerta sozinho pelo NTP e também acerta o DS3231).

@@ -21,17 +21,17 @@ a placa no início do ciclo**: nessas condições, volta a ficar perto ou acima 
 
 ## 2. As três versões
 
-| | **v1** (em uso) | **v2** | **v3** (proposta) |
-|---|---|---|---|
-| Pasta | [`v1_uva_39f/`](v1_uva_39f/) | [`v2_geral/`](v2_geral/) | [`v3_unico/`](v3_unico/) |
-| Culturas no treino | só uva Itália | sintéticas + uva + manga | sintéticas + uva + manga |
-| Dados de treino | perfeitos | com falhas (irrigação mal registrada, sensores com erro, solo estimado, placa ligada no meio do ciclo) | com falhas, em todas as combinações de fonte da irrigação e início do uso |
-| Sabe a situação do local? | não precisa | não | **sim**: fonte da irrigação e início do uso entram como parâmetros |
-| Entradas | 39 | 37 | 45 (as 37 da v2 + 8 de situação) |
-| Rede | 39-16-3, 691 parâmetros, 3 KB | 37-16-3, 659 parâmetros, 2,9 KB | 45-16-3, 787 parâmetros, 3,5 KB |
-| Scripts | `01` → `03` → `04` | `06` → `07` | `12` → `13` |
-| Pronta para a placa? | **sim** | não (falta adaptar o `historico.py`) | não (falta adaptar o `historico.py` e o `config_local`) |
-| Tag git | `modelo-v1-uva` | — | — |
+| | **v1** (em uso) | **v2** | **v3** (proposta) | **v3.1** (v3 + Palmer) |
+|---|---|---|---|---|
+| Pasta | [`v1_uva_39f/`](v1_uva_39f/) | [`v2_geral/`](v2_geral/) | [`v3_unico/`](v3_unico/) | [`v3_1_palmer/`](v3_1_palmer/) |
+| Culturas no treino | só uva Itália | sintéticas + uva + manga | sintéticas + uva + manga | sintéticas (ciclo até 365 d) + uva + manga Tommy Atkins + **manga Palmer (ano todo)** |
+| Dados de treino | perfeitos | com falhas (irrigação mal registrada, sensores com erro, solo estimado, placa ligada no meio do ciclo) | com falhas, em todas as combinações de fonte da irrigação e início do uso | igual à v3 |
+| Sabe a situação do local? | não precisa | não | **sim**: fonte da irrigação e início do uso entram como parâmetros | sim |
+| Entradas | 39 | 37 | 45 (as 37 da v2 + 8 de situação) | 45 |
+| Rede | 39-16-3, 691 parâmetros, 3 KB | 37-16-3, 659 parâmetros, 2,9 KB | 45-16-3, 787 parâmetros, 3,5 KB | 45-32-3, 1.571 parâmetros, 6,6 KB |
+| Scripts | `01` → `03` → `04` | `06` → `07` | `12` → `13` | `14` → `15` |
+| Pronta para a placa? | **sim** | não (falta adaptar o `historico.py`) | não (falta adaptar o `historico.py` e o `config_local`) | não (igual à v3) |
+| Tag git | `modelo-v1-uva` | — | — | — |
 
 ---
 
@@ -85,6 +85,20 @@ diferentes). Compare cada versão com a **conta do balanço no mesmo teste**.
 
 Híbrido (conta com sensor de vazão, v3 nas outras fontes): **80,0%** geral.
 
+**v3.1 na manga Palmer** (150 ciclos, ano todo; `resultados_v3_1_palmer.md`):
+
+| Fonte da irrigação | Conta do balanço | Rede v3.1 |
+|---|---|---|
+| Sensor de vazão | 86,6% | **88,8%** |
+| Produtor informa a quantidade | 82,6% | **85,0%** |
+| Produtor informa o tempo de válvula | 83,8% | **85,3%** |
+| Registro de vez em quando | 71,5% | **75,3%** |
+| Sem informação | 36,8% | 60,2% (só 70% dos críticos) |
+| **Geral** | 73,4% | **79,5%** |
+
+Com informação de irrigação, a v3.1 fica entre 85% e 89% na Palmer em todas as fases do ano e ganha da conta até com
+sensor de vazão. Ressalva: os anos dessa avaliação (2007–2009) incluem os da validação (DECISOES, seção 17).
+
 ---
 
 ## 5. Prós e contras
@@ -119,7 +133,8 @@ Híbrido (conta com sensor de vazão, v3 nas outras fontes): **80,0%** geral.
 
 ## 7. O que precisamos decidir (checklist)
 
-- [ ] **Qual versão vai para o firmware:** v1, v2 ou v3 (proposta: v3 com a regra híbrida da seção 6).
+- [ ] **Qual versão vai para o firmware:** v1, v2, v3 ou v3.1 (proposta: v3 com a regra híbrida da seção 6; a v3.1 é a
+      v3 que também cobre a manga Palmer no ano todo e, nela, dispensa o híbrido).
 - [ ] **Meta de 90%:** redefinir com o Prof. Max por condição de uso (ex.: "> 90% com irrigação medida/informada
       e instalação no início do ciclo"), em vez de um número único.
 - [ ] **Sem informação de irrigação:** concordamos em não mostrar a classe?
@@ -130,6 +145,8 @@ Híbrido (conta com sensor de vazão, v3 nas outras fontes): **80,0%** geral.
 - [ ] **Com o Prof. Max:** p = 0,35 da uva, limite do crítico Ks = 0,5, faixas das culturas sintéticas, e Kc da
       manga fora da floração-maturação (pós-colheita, vegetativo, indução floral — na indução, a irrigação é
       reduzida de propósito e o sistema não deveria recomendar irrigar).
+- [ ] **Indução floral:** hoje o sistema só avisa (campo `manejo` da `culturas.py`). Zerar ou reduzir a lâmina
+      nessa fase? Quanto? (DECISOES, seção 16)
 
 ---
 
@@ -164,6 +181,7 @@ Python 3 com `pip install pandas numpy scikit-learn tabulate tensorflow` (na pas
 | `10_experimento_inicio_apos_irrigacao.py` | placa ligada logo após irrigação forte | ~2 min |
 | `11_inicio_varias_sementes.py` | confere o 09 × 10 em 10 anos e 5 sementes (só balanço) | ~5 min |
 | `12` → `13` | v3: dataset com todas as situações e treino | ~3 min |
+| `14` → `15` | v3.1: v3 + manga Palmer; avaliação em 150 ciclos de Palmer (o 15 só precisa de numpy e pandas) | ~3 min |
 
 Os datasets gerados ficam em `dados/` e não vão para o git (estão no `.gitignore`); rode os scripts para recriá-los.
 Todos usam semente fixa: o resultado se repete.
@@ -177,4 +195,5 @@ Todos usam semente fixa: o resultado se repete.
 - **Clima de um lugar só:** Petrolina, 2000–2009.
 - **Teste pequeno:** o teste de 2009 tem de 35 a 72 cenários; diferenças de poucos pontos podem mudar com outra
   semente.
-- **Manga:** só temos Kc da floração à maturação (~150 dias) e só da cv. Tommy Atkins.
+- **Manga:** a Palmer tem Kc do ano todo (Silva Junior, 2022; `culturas.py`); a Tommy Atkins só da floração à
+  maturação (~150 dias). Nenhuma versão do classificador foi treinada com as fases fora da floração-colheita.

@@ -7,14 +7,19 @@
 #   2. Internet (NTP) pelo Wi-Fi da Pico W, se WIFI_SSID estiver no config_local. Quando o NTP
 #      funciona, ele também acerta o DS3231.
 # Sem nenhum dos dois, dá para acertar à mão pelo Thonny: relogio.acertar(2026, 11, 11, 14, 30).
-# Tudo em hora LOCAL (FUSO_HORAS no config_local; Petrolina = -3).
+#
+# O relógio interno e o DS3231 guardam a hora em UTC; agora() e hoje() devolvem a hora LOCAL
+# (FUSO_HORAS no config_local; Petrolina = -3). UTC por dentro porque o TLS do MQTT confere a
+# validade do certificado do servidor lendo o relógio como UTC: com ele 3 h atrás, um certificado
+# recém-emitido ou renovado parece "do futuro" e a conexão é recusada.
 #
 # Uso:
 #   import relogio
 #   fonte = relogio.iniciar()      # "ds3231", "ntp", "ds3231+ntp" ou None (hora não confiável)
 #   relogio.valido()               # True se a data é de 2025 em diante
-#   relogio.agora()                # (ano, mês, dia, hora, minuto, segundo)
-#   relogio.hoje()                 # (ano, mês, dia)
+#   relogio.agora()                # (ano, mês, dia, hora, minuto, segundo), hora local
+#   relogio.hoje()                 # (ano, mês, dia), data local
+#   relogio.utc()                  # segundos Unix (UTC), para o "ts" das mensagens MQTT
 
 import time
 
@@ -30,6 +35,8 @@ except ImportError:
 
 ENDERECO_DS3231 = 0x68
 ANO_MINIMO = 2025
+# O MicroPython de algumas placas conta o tempo desde 2000; o Unix conta desde 1970.
+EPOCH = 946684800 if time.gmtime(0)[0] == 2000 else 0
 
 
 def _c(nome, padrao):
@@ -113,12 +120,18 @@ def _rtc_interno(ano, mes, dia, hora, minuto, segundo):
     RTC().datetime((ano, mes, dia, dia_semana(ano, mes, dia), hora, minuto, segundo, 0))
 
 
+def _fuso_s():
+    return int(_c("FUSO_HORAS", -3) * 3600)
+
+
 def acertar(ano, mes, dia, hora=0, minuto=0, segundo=0):
-    """Acerta à mão (hora local): relógio interno e, se houver, o DS3231."""
-    _rtc_interno(ano, mes, dia, hora, minuto, segundo)
+    """Acerta à mão, em hora LOCAL: grava em UTC no relógio interno e, se houver, no DS3231."""
+    t = time.mktime((ano, mes, dia, hora, minuto, segundo, 0, 0)) - _fuso_s()
+    u = time.gmtime(t)[:6]
+    _rtc_interno(*u)
     d = _ds3231()
     if d:
-        d.gravar(ano, mes, dia, hora, minuto, segundo)
+        d.gravar(*u)
     return agora()
 
 
@@ -140,9 +153,7 @@ def _ntp():
                 time.sleep_ms(500)
         if not w.isconnected():
             return False
-        ntptime.settime()                           # acerta o RTC interno em UTC
-        local = time.localtime(time.time() + int(_c("FUSO_HORAS", -3) * 3600))
-        _rtc_interno(*local[:6])
+        ntptime.settime()                           # acerta o RTC interno em UTC (e fica em UTC)
         return True
     except Exception:
         return False
@@ -155,7 +166,7 @@ def iniciar(usar_ntp=True):
     if d:
         try:
             if not d.perdeu_hora():
-                t = d.ler()
+                t = d.ler()                             # o DS3231 guarda UTC
                 if t[0] >= ANO_MINIMO:
                     _rtc_interno(*t)
                     fonte = "ds3231"
@@ -165,14 +176,20 @@ def iniciar(usar_ntp=True):
         fonte = "ntp" if fonte is None else "ds3231+ntp"
         if d:
             try:
-                d.gravar(*agora())
+                d.gravar(*time.gmtime()[:6])        # o DS3231 também em UTC
             except OSError:
                 pass
     return fonte if valido() else None
 
 
+def utc():
+    """Segundos Unix (UTC). Com o relógio não acertado, um valor de antes de 2025."""
+    return int(time.time()) + EPOCH
+
+
 def agora():
-    return tuple(time.localtime()[:6])
+    """Hora local (ano, mês, dia, hora, minuto, segundo): o relógio guarda UTC."""
+    return tuple(time.gmtime(time.time() + _fuso_s())[:6])
 
 
 def hoje():
@@ -189,6 +206,11 @@ if __name__ == "__main__":
             assert decodificar_ds3231(codificar_ds3231(*t)) == t, t
         assert dia_semana(2026, 11, 10) == 1      # 10/11/2026 é terça
         assert dia_semana(2026, 11, 15) == 6      # domingo
+        # agora() = UTC + fuso: no PC o relógio já é UTC, então a diferença é de 3 h
+        a = agora()
+        u = time.gmtime()[:6]
+        assert (u[3] - a[3]) % 24 == 3, (u, a)
+        assert abs(utc() - time.time()) < 2
         print("OK")
     else:
         print("fonte:", iniciar(), " agora:", agora(), " DS3231:", bool(_ds3231()))

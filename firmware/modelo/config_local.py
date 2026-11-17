@@ -63,8 +63,10 @@ MM_POR_PULSO = 0.2794
 # conector IDC, fileira "GP18 GP19 GP20 GP4 GP9 GP8 5V": GP18 é o 1º pino; o outro fio vai no GND
 PINO_ANEMOMETRO = 18
 # calibração de fábrica do 014A: v (m/s) = ANEMO_M × f (Hz) + ANEMO_B; com f = 0 dá 0
-ANEMO_M = 0.8
-ANEMO_B = 0.447
+# Manual Met One 014A-9800 (Rev. 9/96), tab. 1-1: V = f × 1,7892 + 1 mph
+#   -> 0,7999 m/s por Hz + 0,44704 m/s (valores do Thalles, conferidos na bancada)
+ANEMO_M = 0.7999
+ANEMO_B = 0.44704
 # altura das conchas acima do solo (m); o ET0 do FAO-56 usa vento a 2 m, e o anemometro.py
 # converte se for outra altura. ASSUMIDO: 2,0 m; medir na instalação e trocar aqui
 ANEMO_ALTURA_M = 2.0
@@ -82,6 +84,11 @@ PINO_RS485_DE_RE = 4
 # (bancada/teste_piranometro_rs485.py com SCAN_MODE = True)
 PIRANO_ENDERECO = 1
 PIRANO_BAUD = 4800
+# recuperação de quadros corrompidos (Thalles, 16/11/2026): a linha RS-485 da bancada perde bits
+# 1; o OU de várias respostas reconstrói o valor, conferido pelo CRC. Contorno, não conserto:
+# com a terminação de 120 Ω e o bias em A/B corrigidos, dá para pôr False.
+PIRANO_RECUPERAR_OR = True
+PIRANO_TENTATIVAS = 8      # transações Modbus por leitura
 
 # AM2302 (temperatura e umidade do ar; usados por termohigro.py). O AM2302 é o DHT22 em
 # versão com fios: mesmo protocolo, lido pelo driver dht.DHT22 do MicroPython.
@@ -136,6 +143,35 @@ MODO_FECHAMENTO = "meia_noite"
 #   ligar em 20 de novembro de 2026 -> DATA_INSTALACAO = (2026, 11, 20)
 # None = não informada (aí o modo "24h" só funciona com o DS3231 ou o Wi-Fi acertando a hora)
 DATA_INSTALACAO = None
+
+
+# ---------------------------------------------------------------- válvula e plataforma
+# relé da válvula solenoide (usados por valvula.py)
+PINO_RELE = 19
+# módulo de relé "low level trigger" (liga com o IN em 0 V; o mais comum): True
+RELE_NIVEL_BAIXO = True
+# só se o módulo de 5 V, sem o jumper JD-VCC, não desligar com o IN em 3,3 V: True
+RELE_DRENO_ABERTO = False
+# intervalo da telemetria até o painel mandar outro (minutos)
+TELEMETRIA_MIN = 15
+
+# Wi-Fi e plataforma: ficam no config_rede.py, um por placa e FORA do git (tem as senhas).
+# Modelo em config_rede.exemplo.py; o firmware/preparar_placa.py gera o arquivo. Sem ele (ou
+# com MQTT_HOST vazio), a estação roda sozinha: mede, calcula e mostra no display.
+MQTT_HOST = ""
+MQTT_PORTA = 8883
+MQTT_TLS = True
+MQTT_CA = "isrg_root_x2.der"
+MQTT_USUARIO = ""
+MQTT_SENHA = ""
+try:
+    from config_rede import *  # noqa: F401,F403  (WIFI_* e MQTT_* da placa)
+except ImportError:
+    pass
+
+# A cultura, a data da poda/floração, o solo e a irrigação acima são o PADRÃO: com a placa na
+# plataforma, valem os do painel (main.aplicar_config_plataforma, gravados em
+# config_plataforma.json). Trocar de cultivo é pelo painel, sem mexer na placa.
 
 
 # ---------------------------------------------------------------- valores derivados

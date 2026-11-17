@@ -1,0 +1,6 @@
+# Rede de cada placa (Wi-Fi e senha MQTT): nunca no git
+modelo/config_rede.py
+# Pasta montada pelo preparar_placa.py
+para_a_placa/
+__pycache__/
+senhas_placas.env

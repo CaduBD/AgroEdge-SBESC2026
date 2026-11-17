@@ -27,6 +27,20 @@
 #
 # Para testar sem esperar a meia-noite:  import main; main.rodar(fechar_agora=True)
 #
+# Plataforma (https://agroedge.tech) por MQTT com TLS, quando o config_rede.py tem MQTT_HOST:
+#   - a cada intervalo (15 min por padrão, ajustável no painel) manda a telemetria: médias do
+#     intervalo de temperatura, umidade, vento a 2 m e radiação, e a chuva do intervalo;
+#   - no fechamento do dia manda o diário (ET0, Kc, classe, lâmina...);
+#   - recebe do painel a configuração do cultivo (cultura, data da poda/floração, solo, vazão,
+#     irrigação automática...), que vale SOBRE os valores do config_local.py e fica gravada em
+#     config_plataforma.json: trocar de cultivo é pelo painel, não pela placa;
+#   - recebe os comandos da válvula (abrir X minutos, cancelar) e responde;
+#   - irrigação automática na hora configurada, com a lâmina do último fechamento (nunca na
+#     indução floral, quando o produtor reduz a água de propósito).
+# Sem rede, a estação continua igual: guarda as mensagens e manda quando a rede volta.
+# Arquivos da rede: conexao.py, valvula.py, config_rede.py (Wi-Fi e senha; fora do git),
+# isrg_root_x2.der (raiz do certificado) e a biblioteca umqtt.simple (mpremote mip install).
+#
 # Modo de teste de 24 h (config_local.MODO_FECHAMENTO = "24h"): o dia fecha 24 horas de
 # funcionamento depois de ligar, e não à meia-noite. Instalando às 10h, às 10h do dia seguinte
 # sai um dia completo (um ciclo inteiro de sol, Tmax e Tmin). O tempo é contado pelo próprio
@@ -35,6 +49,7 @@
 # conta: a janela continua de onde parou quando a placa volta.
 
 import json
+import sys
 import time
 
 import config_local as cfg
@@ -43,6 +58,9 @@ import eto
 ARQ_ESTADO = "estado.json"
 ARQ_DIARIO = "diario.csv"
 ARQ_IRRIG = "irrigacao_hoje.json"
+ARQ_CONFIG_PLATAFORMA = "config_plataforma.json"
+ARQ_REDE = "rede_estado.json"
+TELEMETRIA_MIN = 15    # padrão até o painel mandar outro intervalo
 
 TICK_S = 10            # a cada 10 s: vento e display
 LEITURA_S = 60         # a cada 60 s: AM2302 e piranômetro
@@ -159,6 +177,42 @@ def processar_dia(hist, data, ar, rs, u2, chuva, irrigacao, cobertura):
     return r
 
 
+def aplicar_config_plataforma(c):
+    """Config do painel (contrato MQTT, seção 7.3) -> valores do config_local, na memória.
+    A cultura e os dados do local passam a vir do painel; o config_local fica como padrão."""
+    import culturas
+    a, m, d = (int(x) for x in c["data_referencia"].split("-"))
+    culturas.cultura(c["cultura"])          # erro claro se a placa não conhece a cultura
+    cfg.CULTURA = c["cultura"]
+    cfg.DATA_REFERENCIA = (a, m, d)
+    cfg.AGUA_DISP = c["agua_disp"]
+    cfg.RAIZ_M = c.get("raiz_m")
+    cfg.EFICIENCIA = c["eficiencia"]
+    cfg.AREA_M2 = c["area_m2"]
+    cfg.VAZAO_L_H = c["vazao_l_h"]
+    cfg.N_PLANTAS = c.get("n_plantas")
+    cfg.FONTE_IRRIGACAO = c.get("fonte_irrigacao", "tempo")
+    cfg.INICIO_USO = c.get("inicio_uso", "meio")
+    # valores derivados (o config_local calcula na importação)
+    cfg._c = culturas.cultura(cfg.CULTURA)
+    cfg.RAIZ_EFETIVA_M = cfg.RAIZ_M if cfg.RAIZ_M is not None else cfg._c["raiz_m"]
+    p_local = getattr(cfg, "P_LOCAL", None)
+    cfg.P_DEPLECAO = p_local if p_local is not None else cfg._c["p"]
+    # o lamina.py guarda o config nos valores padrão das funções: recarregar no próximo uso
+    if "lamina" in sys.modules:
+        del sys.modules["lamina"]
+
+
+def payload_diario(r, taw):
+    """Resultado do processar_dia -> mensagem "diario" da plataforma (mesmos nomes)."""
+    p = {"taw": round(taw, 1)}
+    for k, v in r.items():
+        if k not in ("nome_classe", "modelo"):
+            p[k] = round(v, 3) if isinstance(v, float) else v
+    p["avisos"] = list(r.get("avisos", []))
+    return p
+
+
 def proximo_dia(a, m, d):
     dias = (31, 29 if a % 4 == 0 and (a % 100 != 0 or a % 400 == 0) else 28,
             31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
@@ -242,6 +296,26 @@ def _abrir(nome, construtor):
         return None
 
 
+def _ler_json(nome, padrao=None):
+    try:
+        with open(nome) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return padrao
+
+
+def _gravar_json(nome, dados):
+    try:
+        with open(nome, "w") as f:
+            json.dump(dados, f)
+    except OSError as e:
+        print("não gravou", nome, e)
+
+
+LACO_MS = 250          # o laço roda a cada 250 ms: rede, comandos e válvula sem atraso
+AUTO_MAX_MIN = 480     # irrigação automática: no máximo 8 h seguidas (turno longo da manga)
+
+
 class Estacao:
     def __init__(self):
         import relogio
@@ -249,7 +323,15 @@ class Estacao:
         import anemometro
         import pluviometro
         import piranometro
+        import conexao
+        import valvula
         self.relogio = relogio
+        self.anemometro = anemometro
+        self.conexao = conexao
+        # Wi-Fi primeiro: o relógio acerta pela internet (NTP) e o TLS precisa da hora certa
+        if conexao.habilitada():
+            print("Wi-Fi:", "conectado" if conexao.wifi(esperar=True) else
+                  "sem conexão (a placa segue medindo e tenta de novo)")
         self.fonte_hora = relogio.iniciar()
         print("relógio:", self.fonte_hora or ("interno" if relogio.valido() else "NÃO ACERTADO"),
               relogio.agora())
@@ -258,35 +340,68 @@ class Estacao:
         self.vento = _abrir("anemômetro", anemometro.Anemometro)
         self.chuva = _abrir("pluviômetro", pluviometro.Pluviometro)
         self.sol = _abrir("piranômetro", piranometro.criar_padrao)
+        # configuração do cultivo vinda do painel (vale sobre o config_local)
+        self.plataforma = {}
+        salva = _ler_json(ARQ_CONFIG_PLATAFORMA)
+        if salva:
+            try:
+                aplicar_config_plataforma(salva)
+                self.plataforma = salva
+                print("cultivo do painel: %s desde %s (config v%s)"
+                      % (salva["cultura"], salva["data_referencia"], salva.get("cfg_v")))
+            except (KeyError, ValueError) as e:
+                print("config do painel inválida, usando o config_local:", e)
         self.hist = novo_historico()
         self.estado = {"dia": None, "segundos": 0.0, "energia_j": 0.0, "n_sol": 0, "seg_sol": 0.0}
-        try:
-            with open(ARQ_ESTADO) as f:
-                self.estado.update(json.load(f))
-        except (OSError, ValueError):
-            pass
+        self.estado.update(_ler_json(ARQ_ESTADO, {}))
         if self.estado["dia"] is None and relogio.valido():
             self.estado["dia"] = list(relogio.hoje())
+        # válvula e o que a irrigação automática precisa lembrar entre reinícios
+        self.valvula = valvula.Valvula()
+        self.rede = {"auto_min": 0.0, "ultimo_dia_auto": None, "irr_valvula_mm": 0.0,
+                     "executados": []}
+        self.rede.update(_ler_json(ARQ_REDE, {}))
+        self.con = conexao.Conexao(self.receber) if conexao.habilitada() else None
+        self.janela = self._nova_janela()
         self.ultimo = {"t": None, "ur": None, "w": None, "v": None}
         self.ultimo_dia = None
 
     def salvar(self):
         try:
-            with open(ARQ_ESTADO, "w") as f:
-                json.dump(self.estado, f)
+            _gravar_json(ARQ_ESTADO, self.estado)
             for s in (self.ar, self.vento, self.chuva):
                 if s:
                     s.salvar()
             self.hist.salvar()
+            self.salvar_rede()
         except OSError as e:
             print("erro ao salvar:", e)
 
+    def salvar_rede(self):
+        self.rede["executados"] = self.rede["executados"][-20:]
+        _gravar_json(ARQ_REDE, self.rede)
+        if self.con:
+            self.con.salvar()
+
+    # ------------------------------------------------------------ sensores
+
+    def _nova_janela(self):
+        """Somas do intervalo da telemetria (médias e chuva do intervalo)."""
+        return {"t": 0.0, "nt": 0, "ur": 0.0, "nur": 0, "w": 0.0, "nw": 0, "v": 0.0, "tv": 0.0,
+                "chuva0": self.chuva.chuva_mm() if self.chuva else 0.0, "chuva_extra": 0.0}
+
     def ler_lento(self, dt):
         """AM2302 e piranômetro (a cada LEITURA_S). dt = segundos desde a última leitura."""
+        j = self.janela
         if self.ar:
             t, ur = self.ar.ler()
             self.ultimo["t"], self.ultimo["ur"] = t, ur
             self.ar.adicionar(t, ur)
+            if t is not None and ur is not None:
+                j["t"] += t
+                j["nt"] += 1
+                j["ur"] += ur
+                j["nur"] += 1
         if self.sol:
             w = self.sol.ler_seguro()
             self.ultimo["w"] = w
@@ -294,12 +409,143 @@ class Estacao:
                 self.estado["energia_j"] += w * dt
                 self.estado["n_sol"] += 1
                 self.estado["seg_sol"] += dt
+                j["w"] += w
+                j["nw"] += 1
 
     def ler_vento(self):
         if self.vento:
             _, _, v = self.vento.medir()
-            self.vento.adicionar(v, self.vento.ultimo_dt)
+            dt = self.vento.ultimo_dt
+            self.vento.adicionar(v, dt)
             self.ultimo["v"] = v
+            self.janela["v"] += self.anemometro.para_2m(v) * dt
+            self.janela["tv"] += dt
+
+    # ------------------------------------------------------------ plataforma (MQTT)
+
+    def intervalo_s(self):
+        minutos = self.plataforma.get("intervalo_telemetria_min") or _c("TELEMETRIA_MIN",
+                                                                         TELEMETRIA_MIN)
+        return 60 * minutos
+
+    def telemetria(self):
+        if not self.relogio.valido():
+            return                       # sem hora, o "ts" seria rejeitado
+        j = self.janela
+        media = lambda s, n: round(s / n, 2) if n else None
+        chuva = None
+        if self.chuva:
+            chuva = round(self.chuva.chuva_mm() - j["chuva0"] + j["chuva_extra"], 2)
+        leitura = {
+            "ts": self.relogio.utc(),
+            "seq": self.con.proximo_seq("telemetria"),
+            "instalacao_id": self.plataforma.get("instalacao_id"),
+            "cfg_v": self.plataforma.get("cfg_v"),
+            "temp_c": media(j["t"], j["nt"]),
+            "ur_pct": media(j["ur"], j["nur"]),
+            "vento_ms": round(j["v"] / j["tv"], 2) if j["tv"] > 0 else None,
+            "rad_wm2": media(j["w"], j["nw"]),
+            "chuva_mm": chuva,
+            "rssi": self.conexao.rssi(),
+            "bat_v": None,               # na fonte/USB
+            "buf": self.con.leituras_no_buffer() + (0 if self.con.conectado else 1),
+        }
+        enviou = self.con.publicar("telemetria", leitura)
+        self.con.salvar()
+        self.janela = self._nova_janela()
+        print("telemetria seq=%d T=%s UR=%s%s" % (leitura["seq"], leitura["temp_c"],
+                                                  leitura["ur_pct"], "" if enviou else " (sem rede)"))
+
+    def receber(self, tipo, dados):
+        """Mensagens da plataforma (chamado pelo conexao.servico)."""
+        if tipo == "config":
+            self.nova_config(dados)
+        elif tipo == "cmd":
+            self.executar(dados)
+
+    def nova_config(self, c):
+        if c == self.plataforma:
+            return                       # a config retida chega de novo a cada conexão
+        try:
+            aplicar_config_plataforma(c)
+        except (KeyError, ValueError) as e:
+            print("config do painel recusada:", e)
+            return
+        trocou_local = c.get("instalacao_id") != self.plataforma.get("instalacao_id")
+        self.plataforma = c
+        _gravar_json(ARQ_CONFIG_PLATAFORMA, c)
+        if trocou_local:
+            self.hist.zerar()            # outro cultivo: o classificador começa do zero
+            self.hist.salvar()
+            print("nova instalação %s: histórico zerado" % c.get("instalacao_id"))
+        print("config v%s aplicada: %s, referência %s"
+              % (c.get("cfg_v"), c["cultura"], c["data_referencia"]))
+
+    def executar(self, cmd):
+        cmd_id = cmd.get("id", "")
+        if not cmd_id or cmd_id in self.rede["executados"]:
+            return                       # repetido (o QoS 1 pode entregar duas vezes)
+        self.rede["executados"].append(cmd_id)
+        acao, minutos = cmd.get("acao"), cmd.get("minutos")
+        if self.relogio.utc() > cmd.get("valido_ate", 0):
+            resultado = "recusado_vencido"
+        elif acao == "abrir":
+            if not isinstance(minutos, (int, float)) or not 1 <= minutos <= 120:
+                resultado = "recusado_invalido"
+            elif self.valvula.aberta:
+                resultado = "recusado_em_andamento"
+            else:
+                self.abrir_valvula(minutos, "manual", cmd_id)
+                resultado = "executado"
+        elif acao == "cancelar":
+            if self.valvula.aberta:
+                self.fechar_valvula("cancelada")
+            resultado = "executado"
+        else:
+            resultado = "recusado_invalido"
+        if self.con:
+            self.con.publicar("cmd_resp", {"id": cmd_id, "ts": self.relogio.utc(),
+                                           "resultado": resultado})
+        print("comando %s %s -> %s" % (acao, minutos or "", resultado))
+        self.salvar_rede()
+
+    def abrir_valvula(self, minutos, origem, cmd_id):
+        p = self.valvula.abrir(minutos, origem, cmd_id, self.relogio.utc())
+        if self.con:
+            self.con.publicar("irrigacao", p)
+
+    def fechar_valvula(self, estado):
+        p, mm = self.valvula.fechar(estado, self.relogio.utc())
+        self.rede["irr_valvula_mm"] += mm     # entra na irrigação do dia no fechamento
+        if self.con:
+            self.con.publicar("irrigacao", p)
+        self.salvar_rede()
+
+    def irrigacao_automatica(self):
+        """Na hora_irrigacao do painel, abre a válvula pelo tempo do último fechamento."""
+        if self.valvula.aberta or self.rede["auto_min"] <= 0 or not self.relogio.valido():
+            return
+        if not self.plataforma.get("irrigacao_automatica"):
+            return
+        a = self.relogio.agora()
+        hh, mm = (int(x) for x in str(self.plataforma.get("hora_irrigacao", "05:00")).split(":")[:2])
+        hoje = list(a[:3])
+        if self.rede["ultimo_dia_auto"] != hoje and (a[3], a[4]) >= (hh, mm):
+            self.rede["ultimo_dia_auto"] = hoje
+            minutos = min(self.rede["auto_min"], AUTO_MAX_MIN)
+            self.rede["auto_min"] = 0.0
+            self.abrir_valvula(minutos, "automatica", None)
+            self.salvar_rede()
+
+    def servico_rede(self):
+        """A cada volta do laço: fecha a válvula na hora, rede, mensagens e irrigação."""
+        if self.valvula.venceu():
+            self.fechar_valvula("concluida")
+        if self.con:
+            self.con.servico()
+        self.irrigacao_automatica()
+
+    # ------------------------------------------------------------ fechamento do dia
 
     def fechar_dia(self):
         e = self.estado
@@ -314,10 +560,26 @@ class Estacao:
         if e["seg_sol"] > 0 and e["seg_sol"] >= COBERTURA_MIN * e["segundos"]:
             rs = e["energia_j"] / 1e6 * (e["segundos"] / e["seg_sol"])
         u2 = self.vento.fechar_dia()[0] if self.vento else None
+        if self.chuva:
+            # a chuva da janela da telemetria continua contando depois que o dia zera
+            self.janela["chuva_extra"] += self.chuva.chuva_mm() - self.janela["chuva0"]
+            self.janela["chuva0"] = 0.0
         chuva = self.chuva.fechar_dia() if self.chuva else 0.0
-        irr = irrigacao_hoje() if _c("IRRIGACAO_MODO", "arquivo") == "arquivo" else 0.0
+        # irrigação do dia: a da própria válvula + a registrada à mão (main.registrar_irrigacao)
+        irr = self.rede["irr_valvula_mm"]
+        if _c("IRRIGACAO_MODO", "arquivo") == "arquivo":
+            irr += irrigacao_hoje()
         cobertura = min(1.0, e["segundos"] / 86400)
         r = processar_dia(self.hist, data, ar, rs, u2, chuva, irr, cobertura)
+        # irrigação automática de amanhã: o tempo que a lâmina pede, menos nas fases em que o
+        # produtor reduz a água de propósito (campo "manejo" da cultura, ex.: indução floral)
+        import culturas
+        if r.get("fase") in culturas.cultura(cfg.CULTURA).get("manejo", {}):
+            self.rede["auto_min"] = 0.0
+            if self.plataforma.get("irrigacao_automatica"):
+                r.setdefault("avisos", []).append("irrigação automática suspensa nesta fase")
+        else:
+            self.rede["auto_min"] = r.get("minutos") or 0.0
         self.ultimo_dia = r
         linha, cab = linha_diario(r)
         try:
@@ -333,7 +595,14 @@ class Estacao:
                 f.write(linha)
         except OSError as ex:
             print("erro no diário:", ex)
+        if self.con and self.relogio.valido():
+            p = payload_diario(r, cfg.taw())
+            p.update(ts=self.relogio.utc(), seq=self.con.proximo_seq("diario"),
+                     instalacao_id=self.plataforma.get("instalacao_id"),
+                     cfg_v=self.plataforma.get("cfg_v"))
+            self.con.publicar("diario", p)
         _zerar_irrigacao()
+        self.rede["irr_valvula_mm"] = 0.0
         print("DIA FECHADO:", r)
         e.update(segundos=0.0, energia_j=0.0, n_sol=0, seg_sol=0.0)
         if _c("MODO_FECHAMENTO", "meia_noite") == "24h":
@@ -357,13 +626,15 @@ class Estacao:
         f = lambda v, fmt: "--" if v is None else fmt % v
         if pagina == 0 or self.ultimo_dia is None:
             a = self.relogio.agora()
+            rede = " *" if self.con and self.con.conectado else ""
             self.display.linhas(
-                "AgroEdge %02d:%02d" % (a[3], a[4]) if self.relogio.valido() else "AgroEdge SEM HORA",
+                ("AgroEdge %02d:%02d" % (a[3], a[4]) + rede) if self.relogio.valido()
+                else "AgroEdge SEM HORA",
                 "T  " + f(u["t"], "%.1f C") + " UR " + f(u["ur"], "%.0f%%"),
                 "Sol " + f(u["w"], "%d W/m2"),
                 "Vento " + f(u["v"], "%.1f m/s"),
                 "Chuva " + (("%.1f mm" % self.chuva.chuva_mm()) if self.chuva else "--"),
-                "Irrig %.1f mm" % irrigacao_hoje())
+                ("VALVULA ABERTA" if self.valvula.aberta else "Irrig %.1f mm" % irrigacao_hoje()))
         else:
             r = self.ultimo_dia
             tot = r.get("aplicar_l_total")
@@ -375,13 +646,17 @@ class Estacao:
                 "  " + f(r.get("aplicar_l_planta"), "%.0f L/pl") + " " + f(r.get("minutos"), "%.0fm"),
                 "Total " + (("%.1f m3" % (tot / 1000)) if tot is not None else "--"))
 
+    # ------------------------------------------------------------ laço
+
     def rodar(self, fechar_agora=False):
         if self.estado["dia"] is None:
             print("ATENÇÃO: relógio não acertado. Ligue o DS3231 ou o Wi-Fi, ou rode",
                   "relogio.acertar(ano, mes, dia, hora, minuto). Coletando mesmo assim.")
         t_ant = time.ticks_ms()
         t_lento = -LEITURA_S
+        t_tick = -TICK_S
         t_salvo = 0
+        t_tele = 60 - self.intervalo_s()   # 1ª telemetria 1 min depois de ligar
         decorrido = 0.0
         pagina = 0
         while True:
@@ -390,32 +665,45 @@ class Estacao:
             t_ant = agora
             decorrido += dt
             self.estado["segundos"] += dt
-            self.ler_vento()
-            if decorrido - t_lento >= LEITURA_S:
-                # a primeira leitura não soma energia; as outras somam o tempo real desde a anterior
-                self.ler_lento(decorrido - t_lento if t_lento >= 0 else 0)
-                t_lento = decorrido
-            if _c("MODO_FECHAMENTO", "meia_noite") == "24h":
-                # modo de teste: fecha após 24 h de funcionamento, com ou sem relógio
-                if self.estado["dia"] is None:
-                    self.estado["dia"] = self._data_janela()
-                if self.estado["segundos"] >= 86400 or fechar_agora:
-                    fechar_agora = False
-                    self.fechar_dia()
-            # virada do dia (o relógio local mudou de data) ou fechamento forçado
-            elif self.relogio.valido():
-                hoje = list(self.relogio.hoje())
-                if self.estado["dia"] is None:
-                    self.estado["dia"] = hoje
-                elif hoje != self.estado["dia"] or fechar_agora:
-                    fechar_agora = False
-                    self.fechar_dia()
-            if decorrido - t_salvo >= SALVAR_S:
-                self.salvar()
-                t_salvo = decorrido
-            pagina = 1 - pagina
-            self.mostrar(pagina)
-            time.sleep(TICK_S)
+            self.servico_rede()
+            if decorrido - t_tick >= TICK_S:
+                t_tick = decorrido
+                self.ler_vento()
+                if decorrido - t_lento >= LEITURA_S:
+                    # a primeira leitura não soma energia; as outras somam o tempo real
+                    self.ler_lento(decorrido - t_lento if t_lento >= 0 else 0)
+                    t_lento = decorrido
+                if _c("MODO_FECHAMENTO", "meia_noite") == "24h":
+                    # modo de teste: fecha após 24 h de funcionamento, com ou sem relógio
+                    if self.estado["dia"] is None:
+                        self.estado["dia"] = self._data_janela()
+                    if self.estado["segundos"] >= 86400 or fechar_agora:
+                        fechar_agora = False
+                        self.fechar_dia()
+                # virada do dia (o relógio local mudou de data) ou fechamento forçado
+                elif self.relogio.valido():
+                    hoje = list(self.relogio.hoje())
+                    if self.estado["dia"] is None:
+                        self.estado["dia"] = hoje
+                    elif hoje != self.estado["dia"] or fechar_agora:
+                        fechar_agora = False
+                        self.fechar_dia()
+                if self.con and decorrido - t_tele >= self.intervalo_s():
+                    t_tele = decorrido
+                    self.telemetria()
+                if decorrido - t_salvo >= SALVAR_S:
+                    self.salvar()
+                    t_salvo = decorrido
+                pagina = 1 - pagina
+                self.mostrar(pagina)
+            time.sleep_ms(LACO_MS)
+
+    def parar(self):
+        if self.valvula.aberta:
+            self.fechar_valvula("interrompida")
+        if self.con:
+            self.con.desconectar()
+        self.salvar()
 
 
 def rodar(fechar_agora=False):
@@ -423,7 +711,7 @@ def rodar(fechar_agora=False):
     try:
         est.rodar(fechar_agora)
     except KeyboardInterrupt:
-        est.salvar()
+        est.parar()
         print("parado; acumulados salvos")
 
 

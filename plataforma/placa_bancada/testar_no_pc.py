@@ -45,6 +45,7 @@ def instalar_substitutos() -> None:
 
     class Pin:
         OUT = 1
+        OPEN_DRAIN = 2
 
         def __init__(self, numero, modo=None, value=0):
             self.numero, self._v = numero, value

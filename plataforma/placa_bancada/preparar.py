@@ -112,6 +112,16 @@ def main() -> None:
     p.add_argument("--wifi", help="nome da rede Wi-Fi 2,4 GHz da placa (a senha é pedida)")
     p.add_argument("--listar-ips", action="store_true", help="mostra os IPs deste computador")
     p.add_argument("--vps", action="store_true", help=f"broker da VPS ({HOST_VPS}:8883, TLS)")
+    p.add_argument(
+        "--rele-nivel-baixo",
+        action="store_true",
+        help='módulo de relé "low level trigger" (liga com o IN em 0 V)',
+    )
+    p.add_argument(
+        "--rele-dreno-aberto",
+        action="store_true",
+        help="com --rele-nivel-baixo: módulo de 5 V que não desliga com o IN em 3,3 V",
+    )
     p.add_argument("--telemetria-s", type=int, default=60)
     p.add_argument("--dias-acelerados", type=int, default=7)
     p.add_argument("--dia-minutos", type=int, default=10)
@@ -163,6 +173,8 @@ def main() -> None:
         f"ACELERADO_DIAS = {args.dias_acelerados}\n"
         f"DIA_MINUTOS = {args.dia_minutos}\n"
         "PINO_RELE = 19\n"
+        f"RELE_NIVEL_BAIXO = {args.rele_nivel_baixo}\n"
+        f"RELE_DRENO_ABERTO = {args.rele_dreno_aberto}\n"
         + (f"WIFI_SSID = {wifi_ssid!r}\nWIFI_SENHA = {wifi_senha!r}\n" if wifi_ssid else ""),
         encoding="utf-8",
     )

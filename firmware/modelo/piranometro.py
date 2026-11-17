@@ -14,7 +14,8 @@
 #   import piranometro
 #   p = piranometro.criar_padrao()
 #   w = p.ler()                 # W/m² (int); levanta ModbusErro se falhar
-#   w = p.ler_seguro()          # W/m² ou None, com novas tentativas
+#   w = p.ler_seguro()          # W/m² ou None, com novas tentativas e recuperação (abaixo)
+#   p.recuperado                # quadros combinados pelo OU na última leitura (0 = direta)
 #   p.integrar(w, 60)           # soma a energia de 60 s ao total do dia
 #   rs = p.fechar_dia()         # Rs do dia em MJ/m²/dia (entrada do FAO-56) e zera
 
@@ -38,6 +39,16 @@ def _c(nome, padrao):
 
 FUNC_READ_HOLDING = 0x03
 REG_RADIACAO = 0x0000        # registrador de radiação (W/m²)
+
+# Recuperação de quadros corrompidos (Thalles, thallesinacio/AgroEdge-SBESC, 16/11/2026).
+# CONTORNO TEMPORÁRIO: na bancada, a linha RS-485 está com o nível lógico "1" fraco e bits 1
+# chegam como 0 (nunca o contrário). O OU bit a bit de várias respostas corrompidas devolve os
+# bits perdidos, e o CRC-16 decide quando a reconstrução está completa. Não substitui a correção
+# do hardware (terminação de 120 Ω, resistores de bias em A/B, divisor do RX): enquanto
+# "recuperado" for maior que 0, o defeito elétrico continua lá.
+RECUPERAR_OR = True
+N_TENTATIVAS = 8             # transações Modbus por leitura (com ou sem OU)
+PAUSA_TENTATIVAS_MS = 20     # silêncio entre uma transação e a próxima
 
 
 class ModbusErro(Exception):
@@ -87,6 +98,20 @@ def interpretar_resposta(resp, endereco):
     return (resp[3] << 8) | resp[4]
 
 
+def somar_ao_ou(acumulador, resp, endereco):
+    """Soma uma resposta corrompida ao acumulador (OU bit a bit) e devolve o valor se o CRC do
+    acumulador já conferir, senão None. Só entram quadros de exatamente 7 bytes com cabeçalho
+    certo: quando a UART perde um byte, os seguintes andam uma posição e estragariam o OU."""
+    if not (len(resp) == 7 and resp[0] == endereco and resp[1] == FUNC_READ_HOLDING
+            and resp[2] == 2):
+        return None
+    for j in range(7):
+        acumulador[j] |= resp[j]
+    if crc16(acumulador[:5]) == (acumulador[5] | (acumulador[6] << 8)):
+        return (acumulador[3] << 8) | acumulador[4]
+    return None
+
+
 def hexstr(dados):
     return " ".join("{:02X}".format(b) for b in dados)
 
@@ -109,6 +134,8 @@ class Piranometro:
         self.energia_j = 0.0     # J/m² acumulados no dia
         self.n = 0
         self.maximo = 0
+        self.recuperado = 0      # quadros combinados pelo OU na última leitura (0 = direta)
+        self.erro = None
 
     def _fim_tx(self, n_bytes):
         # write() só copia para o FIFO; espera o último bit sair antes de soltar o DE/RE
@@ -126,13 +153,19 @@ class Piranometro:
         self.de_re.value(0)
         if self.debug:
             print("  TX:", hexstr(quadro))
+        # Fim de quadro pelo silêncio: 3,5 caracteres sem tráfego no Modbus-RTU, mais o atraso
+        # do FIFO de RX do RP2040 (~32 bits) e folga: ~25 ms a 4800 baud. Sem isso, toda
+        # resposta com byte perdido esperaria o timeout inteiro.
+        silencio_ms = (100 * 1000) // self.baud + 5
         resp = b""
         inicio = time.ticks_ms()
+        ultimo_byte = inicio
         while time.ticks_diff(time.ticks_ms(), inicio) < self.timeout_ms:
             if self.uart.any() > 0:
                 pedaco = self.uart.read()
                 if pedaco:
                     resp += pedaco
+                    ultimo_byte = time.ticks_ms()
                 while resp and resp[0] != quadro[0]:   # lixo da troca de direção (ex.: 0x00)
                     resp = resp[1:]
                 if len(resp) >= n_esperado:
@@ -140,6 +173,8 @@ class Piranometro:
                 if len(resp) >= 5 and (resp[1] & 0x80):
                     break
             else:
+                if resp and time.ticks_diff(time.ticks_ms(), ultimo_byte) > silencio_ms:
+                    break               # o sensor terminou de responder
                 time.sleep_ms(1)
         if self.debug:
             print("  RX:", hexstr(resp) if resp else "(nada)")
@@ -150,15 +185,37 @@ class Piranometro:
         quadro = montar_requisicao(self.endereco, REG_RADIACAO, 1)
         return interpretar_resposta(self._transacao(quadro, 7), self.endereco)
 
-    def ler_seguro(self, tentativas=3):
-        """Como ler(), mas tenta de novo e devolve None se todas falharem."""
-        for _ in range(tentativas):
+    def ler_seguro(self, tentativas=None):
+        """Como ler(), mas tenta até N_TENTATIVAS vezes e, com RECUPERAR_OR, reconstrói o valor
+        pelo OU das respostas corrompidas. Devolve W/m² ou None (causa em self.erro)."""
+        n = _c("PIRANO_TENTATIVAS", N_TENTATIVAS) if tentativas is None else tentativas
+        quadro = montar_requisicao(self.endereco, REG_RADIACAO, 1)
+        acumulador = bytearray(7)    # zerado a cada leitura: o valor muda entre leituras
+        combinados = 0
+        self.recuperado = 0
+        for i in range(n):
+            if i:
+                time.sleep_ms(PAUSA_TENTATIVAS_MS)
+            resp = self._transacao(quadro, 7)
             try:
-                return self.ler()
+                v = interpretar_resposta(resp, self.endereco)
+                self.erro = None
+                return v
             except ModbusErro as e:
+                self.erro = str(e)
                 if self.debug:
                     print("piranômetro:", e)
-                time.sleep_ms(50)       # silêncio mínimo do Modbus-RTU
+            if (_c("PIRANO_RECUPERAR_OR", RECUPERAR_OR) and len(resp) == 7
+                    and resp[0] == self.endereco and resp[1] == FUNC_READ_HOLDING
+                    and resp[2] == 2):
+                v = somar_ao_ou(acumulador, resp, self.endereco)
+                combinados += 1
+                if v is not None and combinados >= 2:
+                    self.recuperado = combinados
+                    self.erro = None
+                    if self.debug:
+                        print("piranômetro: recuperado combinando %d quadros" % combinados)
+                    return v
         return None
 
     # --------------- acumulado do dia (Rs para o FAO-56) ---------------
@@ -209,4 +266,17 @@ if __name__ == "__main__" and UART is None:
             confere(nome, "sem erro", msg)
         except ModbusErro as e:
             confere(nome, msg in str(e), True)
+    # recuperação pelo OU: a linha só transforma bits 1 em 0; cada cópia perde bits diferentes
+    acc = bytearray(7)
+    v = None
+    for perdidos in (0x02, 0x80, 0x08):
+        copia = bytes((b & ~perdidos & 0xFF) if j in (3, 4, 5) else b for j, b in enumerate(resp))
+        v = somar_ao_ou(acc, copia, 1)
+        if v is not None:
+            break
+    confere("OU de cópias corrompidas recupera 650 W/m²", v, 650)
+    confere("cópia com bits faltando sozinha não basta",
+            somar_ao_ou(bytearray(7), bytes([1, 3, 2, 0, 0, 0, 0]), 1), None)
+    confere("quadro com byte perdido não entra no OU",
+            somar_ao_ou(bytearray(7), resp[:3] + resp[4:], 1), None)
     print("\nTodos os testes passaram." if ok else "\nHá testes falhando.")

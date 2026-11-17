@@ -4,6 +4,28 @@ O `main.py` lê todos os sensores, fecha o dia à meia-noite (hora local) e calc
 ET0 (Penman-Monteith FAO-56) → ETc = Kc × ET0 → balanço hídrico → classificador → lâmina de irrigação.
 Mostra os valores no display da BitDogLab e grava um resumo por dia em `diario.csv` na placa.
 
+Com o `config_rede.py` (Wi-Fi e senha da placa), a estação também fala com a plataforma
+(https://agroedge.tech) por MQTT com TLS: manda a telemetria e o fechamento do dia, recebe a
+configuração do cultivo pelo painel e os comandos da válvula, e faz a irrigação automática.
+Sem rede, continua igual e manda o atrasado quando a rede volta.
+
+## Gravar a placa (o jeito fácil)
+
+Na raiz do repositório, com a placa na USB (Python com o `mpremote`, como o do backend):
+
+```bash
+python firmware/preparar_placa.py --wifi "NomeDaRede" --gravar          # firmware completo
+python firmware/preparar_placa.py --wifi "OutraRede" --so-rede --gravar # só trocar o Wi-Fi
+python firmware/preparar_placa.py --serial agroedge-00003 --cadastrar --wifi "Rede" --gravar  # placa nova
+```
+
+O script pede a senha do Wi-Fi sem mostrar, busca a senha MQTT da placa na VPS pela chave SSH,
+monta `firmware/para_a_placa/`, instala o `umqtt.simple` se faltar, grava e reinicia a placa.
+
+**Na placa só muda o `config_rede.py` (o Wi-Fi).** A cultura, a data da poda/floração, o solo, a
+vazão e a irrigação automática vêm do painel (Cultivos e Dispositivo) e ficam em
+`config_plataforma.json`; os valores do `config_local.py` são só o padrão para usar sem rede.
+
 ## Pinos
 
 | Sensor | Pino | Onde |
@@ -15,7 +37,9 @@ Mostra os valores no display da BitDogLab e grava um resumo por dia em `diario.c
 | Relógio DS3231 (opcional) | I²C0: SDA GPIO0, SCL GPIO1, endereço 0x68 | conector I²C0; 3V3 |
 | Display OLED | I²C1 GPIO14/15 | o da própria placa |
 
-Livres ainda: GPIO19 e GPIO20.
+| Relé da válvula (módulo "low level") | GPIO19 | IDC, fileira "GP18 GP19 GP20 GP4 GP9 GP8 5V", 2º pino; `RELE_NIVEL_BAIXO` no `config_local.py` |
+
+Livre ainda: GPIO20.
 
 ## Arquivos para copiar para a placa
 `main.py`, `config_local.py`, `culturas.py`, `eto.py`, `termohigro.py`, `relogio.py`, `anemometro.py`, `pluviometro.py`,
@@ -23,7 +47,14 @@ Livres ainda: GPIO19 e GPIO20.
 `config_local.MODELO`:
 - `"v3_1"` (padrão): `historico_v3.py` e `agroedge_pesos_v3_1.py`;
 - `"v1"` (só uva): `historico.py` e `agroedge_pesos.py`.
+Para a plataforma: `conexao.py`, `valvula.py`, `config_rede.py` (gerado; fora do git),
+`isrg_root_x2.der` (raiz do certificado, gerada do `isrg_root_x2.pem`) e a biblioteca
+`umqtt.simple` (`mpremote mip install umqtt.simple`). O `preparar_placa.py` faz tudo isso.
 Não copie `__pycache__`, `teste_main_pc.py` nem a pasta `bancada`.
+
+O relógio interno e o DS3231 guardam a hora em **UTC** (o TLS exige); o `relogio.agora()` devolve
+a hora local. Um DS3231 acertado antes desta versão (em hora local) fica 3 h errado até o primeiro
+acerto pelo NTP, que acontece sozinho com o Wi-Fi.
 
 ## Antes de ligar no campo (`config_local.py`)
 - `LATITUDE` e `ALTITUDE_M` do pomar (o GPS do celular dá os dois).

@@ -14,3 +14,5 @@ TELEMETRIA_S = 60  # no campo seria 900 (15 min); na bancada, mais rápido para 
 ACELERADO_DIAS = 7  # quantos dias fecham acelerados antes de passar para a meia-noite
 DIA_MINUTOS = 10  # duração de cada dia acelerado
 PINO_RELE = 19  # relé da válvula solenoide
+RELE_NIVEL_BAIXO = False  # True para módulo "low level trigger" (liga com o IN em 0 V)
+RELE_DRENO_ABERTO = False  # True se o módulo de 5 V não desligar com o IN em 3,3 V (sem JD-VCC)

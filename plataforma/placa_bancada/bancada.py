@@ -207,7 +207,15 @@ def totais_do_dia(dia_semente):
 
 class Bancada:
     def __init__(self):
-        self.rele = machine.Pin(getattr(cb, "PINO_RELE", 19), machine.Pin.OUT, value=0)
+        # Módulo de relé "low level" (liga com 0 V): RELE_NIVEL_BAIXO = True. O pino já nasce no
+        # nível de DESLIGADO, para o relé não estalar quando a placa liga.
+        self.rele_baixo = getattr(cb, "RELE_NIVEL_BAIXO", False)
+        modo = machine.Pin.OUT
+        if self.rele_baixo and getattr(cb, "RELE_DRENO_ABERTO", False):
+            # Módulo de 5 V sem o jumper JD-VCC: em vez de pôr 3,3 V no IN (que pode não bastar
+            # para desligar), o pino "solta" (alta impedância) e o próprio módulo puxa para cima.
+            modo = getattr(machine.Pin, "OPEN_DRAIN", machine.Pin.OUT)
+        self.rele = machine.Pin(getattr(cb, "PINO_RELE", 19), modo, value=self.nivel_rele(False))
         self.cliente = None
         self.ssl_ctx = None
         self.conectado = False
@@ -469,6 +477,10 @@ class Bancada:
 
     # ------------------------------------------------------------ válvula (relé)
 
+    def nivel_rele(self, ligado):
+        """Nível do pino para o relé ligado/desligado (módulo "low level" liga com 0)."""
+        return (0 if ligado else 1) if self.rele_baixo else (1 if ligado else 0)
+
     def abrir(self, segundos_rele, minutos_equivalentes, origem, cmd_id):
         """Liga o relé. No dia acelerado, o tempo de relé é comprimido na mesma proporção."""
         ts = ts_utc()
@@ -481,13 +493,13 @@ class Bancada:
             "cmd_id": cmd_id,
             "fator": minutos_equivalentes / max(segundos_rele / 60, 1e-6),
         }
-        self.rele.value(1)
+        self.rele.value(self.nivel_rele(True))
         self.publicar("irrigacao", self.payload_irrigacao(None, None, "iniciada"))
         log("válvula ABERTA (%s), %.1f min" % (origem, minutos_equivalentes))
 
     def fechar(self, estado):
         v = self.valvula
-        self.rele.value(0)
+        self.rele.value(self.nivel_rele(False))
         ts_fim = ts_utc()
         minutos = round((ts_fim - v["ts_inicio"]) / 60 * v["fator"], 1)
         mm = round(minutos / 60 * cfg.VAZAO_L_H / cfg.AREA_M2, 2)
@@ -710,7 +722,7 @@ class Bancada:
                     self.cliente.disconnect()
                 except OSError:
                     pass
-            self.rele.value(0)
+            self.rele.value(self.nivel_rele(False))
             self.salvar()
 
 

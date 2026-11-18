@@ -4,3 +4,4 @@ modelo/config_rede.py
 para_a_placa/
 __pycache__/
 senhas_placas.env
+credenciais_*.py

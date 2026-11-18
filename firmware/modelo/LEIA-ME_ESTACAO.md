@@ -22,6 +22,12 @@ python firmware/preparar_placa.py --serial agroedge-00003 --cadastrar --wifi "Re
 O script pede a senha do Wi-Fi sem mostrar, busca a senha MQTT da placa na VPS pela chave SSH,
 monta `firmware/para_a_placa/`, instala o `umqtt.simple` se faltar, grava e reinicia a placa.
 
+**Sem a chave SSH da VPS** (outro integrante com a placa): o dono da VPS roda
+`python firmware/preparar_placa.py --exportar-credenciais credenciais_agroedge-00001.py` e manda o
+arquivo **no privado**. Quem tem a placa salva como `firmware/modelo/config_rede.py` (fora do git)
+e roda `python firmware/preparar_placa.py --wifi "SuaRede" --gravar`: o serial e a senha da placa
+saem desse arquivo, sem SSH. Precisa só do Python 3 e do `pip install mpremote`.
+
 **Na placa só muda o `config_rede.py` (o Wi-Fi).** A cultura, a data da poda/floração, o solo, a
 vazão e a irrigação automática vêm do painel (Cultivos e Dispositivo) e ficam em
 `config_plataforma.json`; os valores do `config_local.py` são só o padrão para usar sem rede.

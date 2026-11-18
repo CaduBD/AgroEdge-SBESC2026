@@ -8,8 +8,13 @@ Uso, a partir da raiz do repositório (Python com o mpremote, ex.: o do backend 
     python firmware/preparar_placa.py --wifi "OutraRede" --so-rede --gravar   # só trocar o Wi-Fi
     python firmware/preparar_placa.py --serial agroedge-00003 --cadastrar --wifi "Rede" --gravar
 
+Quem NÃO tem a chave SSH da VPS (ex.: outro integrante com a placa): recebe do dono, por
+mensagem privada, o arquivo de credenciais da placa, salva como firmware/modelo/config_rede.py
+e roda normalmente: o script lê o serial e a senha MQTT de lá, sem SSH.
+    python firmware/preparar_placa.py --exportar-credenciais credenciais_placa.py   # (dono)
+
 A senha do Wi-Fi é pedida sem aparecer na tela. Sem --wifi, reaproveita o da última preparação.
-A senha MQTT da placa vem da VPS pela chave SSH (alias agroedge-vps), sem aparecer na tela:
+Sem o config_rede.py, a senha MQTT da placa vem da VPS pela chave SSH (alias agroedge-vps):
   - placa padrão (DISPOSITIVO_SERIAL do .env da VPS): lida do .env;
   - outra placa: --cadastrar cria o serial e a senha na VPS (uma vez); a senha fica guardada
     em firmware/senhas_placas.env (fora do git) para as próximas preparações.
@@ -59,8 +64,26 @@ def ler_env(texto):
     return env
 
 
+def credenciais_locais():
+    """(serial, senha) do firmware/modelo/config_rede.py, se existir e estiver preenchido."""
+    arq = FIRMWARE / "config_rede.py"
+    if not arq.exists():
+        return None, None
+    v = {}
+    for linha in arq.read_text(encoding="utf-8").splitlines():
+        k, _, val = linha.partition("=")
+        if k.strip() in ("MQTT_USUARIO", "MQTT_SENHA"):
+            v[k.strip()] = ast.literal_eval(val.split("#")[0].strip())
+    if v.get("MQTT_USUARIO") and v.get("MQTT_SENHA") and v["MQTT_SENHA"] != "senha-da-placa":
+        return v["MQTT_USUARIO"], v["MQTT_SENHA"]
+    return None, None
+
+
 def senha_da_placa(serial, cadastrar):
     """Senha MQTT do serial: do .env da VPS (placa padrão), do arquivo local ou cadastrando."""
+    s_local, senha_local = credenciais_locais()
+    if not cadastrar and s_local == serial:
+        return senha_local
     guardadas = ler_env(SENHAS.read_text(encoding="utf-8")) if SENHAS.exists() else {}
     if cadastrar:
         senha = secrets.token_urlsafe(18)
@@ -128,15 +151,33 @@ def main():
     p.add_argument("--cadastrar", action="store_true", help="cria o serial e a senha na VPS")
     p.add_argument("--so-rede", action="store_true", help="só o config_rede.py (trocar Wi-Fi)")
     p.add_argument("--gravar", action="store_true", help="copia para a placa pela USB")
+    p.add_argument("--exportar-credenciais", metavar="ARQUIVO",
+                   help="grava só o serial e a senha MQTT (sem Wi-Fi) para mandar a quem tem a placa")
     a = p.parse_args()
 
-    serial = a.serial
+    serial = a.serial or credenciais_locais()[0]
     if not serial:
         serial = ler_env(ssh(f"grep '^DISPOSITIVO_SERIAL=' {PASTA_VPS}/.env")).get(
             "DISPOSITIVO_SERIAL")
     if a.cadastrar and not a.serial:
         sys.exit("--cadastrar precisa de --serial (ex.: agroedge-00003)")
     senha = senha_da_placa(serial, a.cadastrar)
+    if a.exportar_credenciais:
+        linhas = [
+            "# Credenciais da placa AgroEdge. PRIVADO: não ponha no git nem em grupo.",
+            "# Salve como firmware/modelo/config_rede.py e rode o firmware/preparar_placa.py.",
+            'WIFI_SSID = ""',
+            'WIFI_SENHA = ""',
+            f'MQTT_HOST = "{HOST_MQTT}"',
+            "MQTT_PORTA = 8883",
+            "MQTT_TLS = True",
+            f'MQTT_CA = "{CA}"',
+            f'MQTT_USUARIO = "{serial}"',
+            f'MQTT_SENHA = "{senha}"',
+        ]
+        Path(a.exportar_credenciais).write_text("\n".join(linhas) + "\n", encoding="utf-8")
+        print(f"credenciais de {serial} gravadas em {a.exportar_credenciais} (mande no privado)")
+        return
     if a.wifi:
         ssid = a.wifi
         senha_wifi = getpass.getpass(f"Senha do Wi-Fi '{ssid}' (não aparece na tela): ")

@@ -8,14 +8,12 @@ import {
   Droplets,
   Expand,
   FlaskConical,
-  Pause,
-  Play,
   RefreshCw,
   Sigma,
   Sprout,
   Thermometer,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { ErroApi, mensagemDeErro } from "@/api/cliente";
@@ -32,9 +30,6 @@ import { classeInfo } from "@/lib/rotulos";
 import { cn } from "@/lib/utils";
 import { NaoEncontrada } from "@/pages/NaoEncontrada";
 
-const PASSOS = 5;
-const INTERVALO_PASSO_MS = 1100;
-const PAUSA_NO_FIM_MS = 9000;
 const COR_CLASSE = ["var(--estado-adequado)", "var(--estado-moderado)", "var(--estado-critico)"];
 
 const fmt = (v: number | null | undefined, casas = 1, un = "") =>
@@ -58,7 +53,6 @@ function irrigacaoDaManha(d: Diario, lista: Irrigacao[]) {
 
 function Passo({
   n,
-  visivel,
   icone: Icone,
   titulo,
   sub,
@@ -66,7 +60,6 @@ function Passo({
   className,
 }: {
   n: number;
-  visivel: boolean;
   icone: typeof Sigma;
   titulo: string;
   sub: string;
@@ -76,11 +69,9 @@ function Passo({
   return (
     <section
       className={cn(
-        "relative flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs transition-all duration-500",
-        visivel ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-15",
+        "relative flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs",
         className,
       )}
-      aria-hidden={!visivel}
     >
       <header className="flex items-start gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
@@ -138,7 +129,7 @@ function BarraSolo({
     <div className="grid gap-1.5">
       <div className="relative h-5 overflow-hidden rounded-full bg-muted">
         <div
-          className="absolute inset-y-0 left-0 rounded-full transition-all duration-1000"
+          className="absolute inset-y-0 left-0 rounded-full"
           style={{ width: pct(deficit), background: cor }}
         />
         <div className="absolute inset-y-0 w-0.5 bg-foreground/70" style={{ left: pct(raw) }} />
@@ -171,33 +162,12 @@ export function NaPlaca() {
     [diarios.data],
   );
   const [sel, setSel] = useState<number | null>(null);
-  const [passo, setPasso] = useState(0);
-  const [vitrine, setVitrine] = useState(true);
 
   const indice = Math.max(
     0,
     dias.findIndex((d) => d.ts === sel),
   );
   const d = dias[indice] as Diario | undefined;
-
-  // revela os passos um a um sempre que o dia muda
-  useEffect(() => {
-    setPasso(0);
-    const t = setInterval(() => setPasso((p) => (p >= PASSOS ? p : p + 1)), INTERVALO_PASSO_MS);
-    return () => clearInterval(t);
-  }, [d?.ts]);
-
-  // modo vitrine: terminou o dia, espera e vai para o dia anterior (volta ao mais recente no fim)
-  useEffect(() => {
-    if (!vitrine || passo < PASSOS || dias.length < 2) return;
-    const t = setTimeout(() => setSel(dias[(indice + 1) % dias.length].ts), PAUSA_NO_FIM_MS);
-    return () => clearTimeout(t);
-  }, [vitrine, passo, indice, dias]);
-
-  const escolher = (ts: number) => {
-    setVitrine(false);
-    setSel(ts);
-  };
 
   if (resumo.isPending || diarios.isPending) {
     return (
@@ -233,7 +203,6 @@ export function NaPlaca() {
     <div className="grid gap-5">
       {/* ------------------------------------------------ cabeçalho */}
       <div className="relative overflow-hidden rounded-2xl bg-[#10372a] px-6 py-7 text-white sm:px-8">
-        <div className="pointer-events-none absolute -top-16 -right-10 size-64 rounded-full bg-[#2d6a4f]/50 blur-2xl" />
         <p className="flex items-center gap-2 font-mono text-xs tracking-[0.22em] text-[#95d5b2] uppercase">
           <CircuitBoard className="size-4" /> Dentro da BitDogLab · RP2040 · MicroPython
         </p>
@@ -263,15 +232,6 @@ export function NaPlaca() {
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => setVitrine((v) => !v)}
-              className="bg-white/10 text-white hover:bg-white/20"
-            >
-              {vitrine ? <Pause className="size-4" /> : <Play className="size-4" />}
-              {vitrine ? "Pausar vitrine" : "Modo vitrine"}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
               onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}
               className="bg-white/10 text-white hover:bg-white/20"
             >
@@ -297,9 +257,9 @@ export function NaPlaca() {
                 <button
                   key={x.ts}
                   type="button"
-                  onClick={() => escolher(x.ts)}
+                  onClick={() => setSel(x.ts)}
                   className={cn(
-                    "flex min-w-16 shrink-0 flex-col items-center gap-1 rounded-lg border px-2.5 py-2 text-xs transition-colors",
+                    "flex min-w-16 shrink-0 flex-col items-center gap-1 rounded-lg border px-2.5 py-2 text-xs",
                     ativo
                       ? "border-primary bg-primary text-primary-foreground"
                       : "bg-card hover:bg-accent",
@@ -332,7 +292,6 @@ export function NaPlaca() {
           <div className="grid gap-3 min-[1800px]:grid-cols-[1fr_1fr_1fr_1.15fr] lg:grid-cols-2">
             <Passo
               n={1}
-              visivel={passo >= 1}
               icone={Thermometer}
               titulo="Sensores do dia"
               sub="~144 leituras de 10 min, guardadas na flash"
@@ -351,7 +310,6 @@ export function NaPlaca() {
 
             <Passo
               n={2}
-              visivel={passo >= 2}
               icone={Sigma}
               titulo="Penman-Monteith"
               sub="FAO-56, equação 6, em ponto flutuante na RP2040"
@@ -368,7 +326,6 @@ export function NaPlaca() {
 
             <Passo
               n={3}
-              visivel={passo >= 3}
               icone={Sprout}
               titulo="Cultura"
               sub={`${cultivo.cultura_info?.nome ?? d.cultura ?? ""} · dia ${d.dap ?? "—"} do ciclo`}
@@ -390,7 +347,6 @@ export function NaPlaca() {
 
             <Passo
               n={4}
-              visivel={passo >= 4}
               icone={Droplets}
               titulo="Balanço do solo"
               sub="o que entrou menos o que a planta consumiu"
@@ -428,14 +384,13 @@ export function NaPlaca() {
 
           <Passo
             n={5}
-            visivel={passo >= 5}
             icone={BrainCircuit}
             titulo="Classificador na placa (rede neural MLP, 6,6 KB)"
             sub="45 entradas (28 dias de clima e manejo) → 32 neurônios → 3 classes"
           >
             <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
               <div className="rounded-xl bg-muted/50 p-3">
-                <RedeNeural classe={d.classe} acesa={passo >= 5} />
+                <RedeNeural key={d.ts} classe={d.classe} />
                 <p className="mt-1 text-center text-[11px] text-muted-foreground">
                   Ligações com os pesos reais do modelo v3.1; em destaque, os neurônios que mais
                   pesam na classe do dia. A classe é a que a placa enviou.

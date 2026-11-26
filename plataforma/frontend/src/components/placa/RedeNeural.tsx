@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 
 import { N_CLASSES, N_ENTRADAS, N_OCULTA, W1, W2 } from "@/lib/pesosV31";
-import { cn } from "@/lib/utils";
 
 const COR_CLASSE = ["var(--estado-adequado)", "var(--estado-moderado)", "var(--estado-critico)"];
 const ROTULO = ["Adequado", "Moderado", "Crítico"];
@@ -19,7 +18,8 @@ const ySaida = (k: number) => A / 2 + (k - 1) * 58;
  * na classe que a placa escolheu (pesos W2 positivos). As entradas do dia não vêm da placa,
  * então nenhuma ativação é inventada aqui.
  */
-export function RedeNeural({ classe, acesa }: { classe: number | null; acesa: boolean }) {
+export function RedeNeural({ classe }: { classe: number | null }) {
+  const acesa = true;
   const { lig1, lig2, destaque } = useMemo(() => {
     const max1 = Math.max(...W1.map(Math.abs));
     const corte = [...W1].map(Math.abs).sort((a, b) => b - a)[140];
@@ -69,7 +69,6 @@ export function RedeNeural({ classe, acesa }: { classe: number | null; acesa: bo
           stroke={w > 0 ? "var(--primary)" : "var(--muted-foreground)"}
           strokeWidth={0.4 + f * 0.9}
           opacity={acesa && destaque.has(j) ? 0.15 + f * 0.6 : 0.06 + f * 0.18}
-          className="transition-opacity duration-700"
         />
       ))}
       {lig2.map(({ j, k, w, f }) => {
@@ -84,7 +83,7 @@ export function RedeNeural({ classe, acesa }: { classe: number | null; acesa: bo
             stroke={ativa ? cor : w > 0 ? "var(--primary)" : "var(--muted-foreground)"}
             strokeWidth={ativa ? 1.2 + f * 1.4 : 0.4 + f * 0.6}
             opacity={ativa ? 0.85 : 0.05 + f * 0.15}
-            className={cn("transition-all duration-700", ativa && "pulso-ligacao")}
+            className={ativa ? "pulso-ligacao" : undefined}
           />
         );
       })}
@@ -109,7 +108,6 @@ export function RedeNeural({ classe, acesa }: { classe: number | null; acesa: bo
             fill={on ? cor : "var(--card)"}
             stroke={on ? cor : "var(--muted-foreground)"}
             strokeWidth={1}
-            className="transition-all duration-700"
           />
         );
       })}
@@ -135,7 +133,6 @@ export function RedeNeural({ classe, acesa }: { classe: number | null; acesa: bo
               stroke={COR_CLASSE[k]}
               strokeWidth={1.6}
               opacity={acesa && !on ? 0.45 : 1}
-              className="transition-all duration-700"
             />
             <text
               x={X[2] + 2}

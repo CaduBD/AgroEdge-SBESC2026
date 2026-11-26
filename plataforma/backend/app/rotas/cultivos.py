@@ -143,7 +143,14 @@ async def diarios(
     ate: str | None = None,
 ) -> list[Any]:
     inicio, fim = periodo(de, ate, agora_utc(), padrao_dias=30)
-    return await consultas.diarios(sessao, cultivo.id, inicio, fim)  # type: ignore[arg-type]
+    lista = await consultas.diarios(sessao, cultivo.id, inicio, fim)  # type: ignore[arg-type]
+    origem = await consultas.origens(sessao, {d.dispositivo_id for d in lista})
+    saida = []
+    for d in lista:
+        serial, simulado = origem.get(d.dispositivo_id, (None, False))
+        extra = {"serial": serial, "simulado": simulado}
+        saida.append(DiarioSaida.model_validate(d).model_copy(update=extra))
+    return saida
 
 
 @rotas.get("/{cultivo_id}/irrigacoes", response_model=list[IrrigacaoSaida], tags=["dados"])

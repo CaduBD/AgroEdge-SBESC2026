@@ -32,7 +32,11 @@ export function SeletorCultivo({ selecao }: { selecao: Selecao }) {
   const escolher = (id: number) => {
     setAberto(false);
     salvarCultivo(id);
-    const pagina = pathname.endsWith("/historico") ? "historico" : "inicio";
+    const pagina = pathname.endsWith("/historico")
+      ? "historico"
+      : pathname.endsWith("/placa")
+        ? "placa"
+        : "inicio";
     navegar(`/cultivos/${id}/${pagina}`);
   };
 

@@ -195,3 +195,28 @@
     animation: none;
   }
 }
+
+/* tela "Na placa": ligações da classe do dia e brilho da saída */
+@keyframes pulso-ligacao {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+.pulso-ligacao {
+  stroke-dasharray: 6 6;
+  animation: pulso-ligacao 1.2s linear infinite;
+}
+@keyframes brilho-saida {
+  50% {
+    opacity: 0.4;
+  }
+}
+.brilho-saida {
+  animation: brilho-saida 2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulso-ligacao,
+  .brilho-saida {
+    animation: none;
+  }
+}

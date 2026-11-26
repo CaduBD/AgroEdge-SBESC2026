@@ -375,6 +375,18 @@ async def diarios(sessao: AsyncSession, cultivo_id: int, inicio: int, fim: int) 
     )
 
 
+async def origens(sessao: AsyncSession, ids: set[int]) -> dict[int, tuple[str, bool]]:
+    """dispositivo_id -> (serial, simulado). Simulado = dispositivo de demonstração."""
+    if not ids:
+        return {}
+    linhas = await sessao.execute(
+        select(Dispositivo.id, Dispositivo.serial, Dispositivo.apelido).where(
+            col(Dispositivo.id).in_(ids)
+        )
+    )
+    return {i: (s, "simulad" in (a or "").lower()) for i, s, a in linhas}
+
+
 async def irrigacoes(
     sessao: AsyncSession, cultivo_id: int, inicio: int, fim: int
 ) -> list[Irrigacao]:

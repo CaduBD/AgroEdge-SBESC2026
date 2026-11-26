@@ -1,4 +1,4 @@
-import { Cpu, History, LayoutDashboard, LogOut, Sprout, UserRound } from "lucide-react";
+import { CircuitBoard, Cpu, History, LayoutDashboard, LogOut, Sprout, UserRound } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -14,6 +14,7 @@ function itens(cultivoId: number | null) {
   return [
     { rotulo: "Início", icone: LayoutDashboard, para: cultivoId ? `${base}/inicio` : "/" },
     { rotulo: "Histórico", icone: History, para: cultivoId ? `${base}/historico` : "/historico" },
+    { rotulo: "Na placa", icone: CircuitBoard, para: cultivoId ? `${base}/placa` : "/placa" },
     { rotulo: "Cultivos", icone: Sprout, para: "/cultivos" },
     { rotulo: "Dispositivo", icone: Cpu, para: "/dispositivo" },
     { rotulo: "Conta", icone: UserRound, para: "/conta" },

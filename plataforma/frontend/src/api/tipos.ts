@@ -119,6 +119,8 @@ export interface Diario {
   aplicar_l_total: number | null;
   avisos: string[];
   recebido_em: string;
+  serial?: string | null;
+  simulado?: boolean;
 }
 
 export interface Irrigacao {

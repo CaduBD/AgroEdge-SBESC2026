@@ -4,15 +4,9 @@ import { useParams } from "react-router-dom";
 
 import { ErroApi, mensagemDeErro } from "@/api/cliente";
 import { useResumo } from "@/api/consultas";
-import {
-  CardDemanda,
-  CardClima,
-  CardEstado,
-  CardFase,
-  CardLamina,
-  CardSolo,
-} from "@/components/inicio/Cards";
+import { CardDemanda, CardEstado, CardFase, CardLamina, CardSolo } from "@/components/inicio/Cards";
 import { CardValvula } from "@/components/inicio/CardValvula";
+import { LeiturasAgora } from "@/components/inicio/LeiturasAgora";
 import { EstadoVazio } from "@/components/EstadoVazio";
 import { NaoEncontrada } from "@/pages/NaoEncontrada";
 import { Button } from "@/components/ui/button";
@@ -27,6 +21,7 @@ const GraficoSemana = lazy(async () => ({
 function Carregando() {
   return (
     <div className="grid gap-4 lg:grid-cols-12">
+      <Skeleton className="h-64 rounded-xl lg:col-span-12" />
       <Skeleton className="h-56 rounded-xl lg:col-span-7" />
       <Skeleton className="h-56 rounded-xl lg:col-span-5" />
       <Skeleton className="h-36 rounded-xl lg:col-span-4" />
@@ -72,6 +67,10 @@ export function Inicio() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-12">
+          <LeiturasAgora resumo={r} />
+        </div>
+
         <div className="lg:col-span-7">
           <CardLamina resumo={r} />
         </div>
@@ -86,16 +85,12 @@ export function Inicio() {
         </div>
 
         <div className="lg:col-span-8">
-          <CardClima resumo={r} />
-        </div>
-        <div className="lg:col-span-4">
-          <CardValvula resumo={r} />
-        </div>
-
-        <div className="lg:col-span-12">
           <Suspense fallback={<Skeleton className="h-80 rounded-xl" />}>
             <GraficoSemana dias={r.ultimos_7_dias} />
           </Suspense>
+        </div>
+        <div className="lg:col-span-4">
+          <CardValvula resumo={r} />
         </div>
       </div>
     </div>

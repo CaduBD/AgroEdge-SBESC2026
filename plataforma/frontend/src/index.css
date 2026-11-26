@@ -177,3 +177,52 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* Leitura nova na tela Início: o número pisca de leve quando chega um valor novo. */
+@keyframes leitura-nova {
+  from {
+    background-color: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.leitura-nova {
+  animation: leitura-nova 1.6s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .leitura-nova {
+    animation: none;
+  }
+}
+
+/* tela "Na placa": o sinal percorre a rede uma vez ao abrir o dia */
+@keyframes rede-traco {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.rede-traco {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0.85;
+  animation: rede-traco 0.6s ease-out both;
+}
+@keyframes rede-surge {
+  from {
+    opacity: 0;
+  }
+}
+.rede-surge {
+  animation: rede-surge 0.45s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rede-traco,
+  .rede-surge {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

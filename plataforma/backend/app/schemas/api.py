@@ -344,6 +344,9 @@ class DiarioSaida(Saida):
     aplicar_l_total: float | None
     avisos: list[str]
     recebido_em: datetime
+    # quem fechou o dia: a placa ou um dispositivo de demonstração (apelido "simulad...")
+    serial: str | None = None
+    simulado: bool = False
 
 
 class IrrigacaoSaida(Saida):

@@ -11,6 +11,7 @@ import { NaoEncontrada } from "@/pages/NaoEncontrada";
 const carregarHistorico = async () => ({
   Component: (await import("@/pages/Historico")).Historico,
 });
+const carregarNaPlaca = async () => ({ Component: (await import("@/pages/NaPlaca")).NaPlaca });
 const carregarCultivos = async () => ({ Component: (await import("@/pages/Cultivos")).Cultivos });
 const carregarCultivoEditar = async () => ({
   Component: (await import("@/pages/CultivoEditar")).CultivoEditar,
@@ -33,6 +34,8 @@ export const roteador = createBrowserRouter([
           { path: "historico", element: <RedirecionarCultivo pagina="historico" /> },
           { path: "cultivos/:cultivoId/inicio", element: <Inicio /> },
           { path: "cultivos/:cultivoId/historico", lazy: carregarHistorico },
+          { path: "placa", element: <RedirecionarCultivo pagina="placa" /> },
+          { path: "cultivos/:cultivoId/placa", lazy: carregarNaPlaca },
           { path: "cultivos", lazy: carregarCultivos },
           { path: "cultivos/novo", lazy: carregarCultivoEditar },
           { path: "cultivos/:cultivoId/editar", lazy: carregarCultivoEditar },

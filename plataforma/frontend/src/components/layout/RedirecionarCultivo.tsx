@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCultivoSelecionado } from "@/hooks/useCultivoSelecionado";
 
 /** "/" e "/historico": abrem o último cultivo usado (ou o primeiro). */
-export function RedirecionarCultivo({ pagina }: { pagina: "inicio" | "historico" }) {
+export function RedirecionarCultivo({ pagina }: { pagina: "inicio" | "historico" | "placa" }) {
   const { cultivoId, carregando, grupos } = useCultivoSelecionado();
 
   if (carregando) {

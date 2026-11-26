@@ -9,6 +9,7 @@ import {
   Expand,
   FlaskConical,
   RefreshCw,
+  RotateCcw,
   Sigma,
   Sprout,
   Thermometer,
@@ -162,6 +163,7 @@ export function NaPlaca() {
     [diarios.data],
   );
   const [sel, setSel] = useState<number | null>(null);
+  const [rodada, setRodada] = useState(0);
 
   const indice = Math.max(
     0,
@@ -390,11 +392,16 @@ export function NaPlaca() {
           >
             <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
               <div className="rounded-xl bg-muted/50 p-3">
-                <RedeNeural key={d.ts} classe={d.classe} />
+                <RedeNeural key={`${d.ts}-${rodada}`} classe={d.classe} />
                 <p className="mt-1 text-center text-[11px] text-muted-foreground">
                   Ligações com os pesos reais do modelo v3.1; em destaque, os neurônios que mais
                   pesam na classe do dia. A classe é a que a placa enviou.
                 </p>
+                <div className="mt-2 flex justify-center">
+                  <Button size="sm" variant="outline" onClick={() => setRodada((r) => r + 1)}>
+                    <RotateCcw className="size-4" /> Rodar a classificação de novo
+                  </Button>
+                </div>
               </div>
               <div className="grid gap-4">
                 <div>

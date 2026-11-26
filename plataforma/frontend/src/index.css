@@ -196,27 +196,33 @@
   }
 }
 
-/* tela "Na placa": ligações da classe do dia e brilho da saída */
-@keyframes pulso-ligacao {
+/* tela "Na placa": o sinal percorre a rede uma vez ao abrir o dia */
+@keyframes rede-traco {
+  from {
+    stroke-dashoffset: 1;
+  }
   to {
-    stroke-dashoffset: -24;
+    stroke-dashoffset: 0;
   }
 }
-.pulso-ligacao {
-  stroke-dasharray: 6 6;
-  animation: pulso-ligacao 1.2s linear infinite;
+.rede-traco {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0.85;
+  animation: rede-traco 0.6s ease-out both;
 }
-@keyframes brilho-saida {
-  50% {
-    opacity: 0.4;
+@keyframes rede-surge {
+  from {
+    opacity: 0;
   }
 }
-.brilho-saida {
-  animation: brilho-saida 2s ease-in-out infinite;
+.rede-surge {
+  animation: rede-surge 0.45s ease-out both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .pulso-ligacao,
-  .brilho-saida {
+  .rede-traco,
+  .rede-surge {
     animation: none;
+    stroke-dashoffset: 0;
   }
 }
